@@ -46,3 +46,12 @@ Insert a new row into `workflow_definitions` with unique `(workflow_key, workflo
   "inputs": {}
 }
 ```
+
+## Worker SDK startup migrations
+
+When workers are configured with `AddApeWorkerSdk`, the SDK automatically runs startup migrations before RabbitMQ message consumption begins.
+
+- Set `Migrations__Enabled=true` to run migrations on startup.
+- Set `Migrations__Enabled=false` to disable startup migrations.
+- Startup fails if migration execution fails, preventing message consumption with an out-of-date schema.
+- Future worker services do not need to manually register a migration hosted service when they use `AddApeWorkerSdk`.
