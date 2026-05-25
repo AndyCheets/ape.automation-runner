@@ -41,17 +41,23 @@ public sealed class WorkflowDefinitionValidator
 
             if (step.TaskType == "module.request")
             {
-                if (!step.Config.TryGetProperty("commandMessageType", out _))
+                if (step.Config is not ModuleRequestWorkflowTaskConfig moduleRequest)
+                {
+                    errors.Add($"module.request {step.StepKey} has invalid config");
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(moduleRequest.CommandMessageType))
                 {
                     errors.Add($"module.request {step.StepKey} missing commandMessageType");
                 }
 
-                if (!step.Config.TryGetProperty("expectedCompletedMessageType", out _))
+                if (string.IsNullOrWhiteSpace(moduleRequest.ExpectedCompletedMessageType))
                 {
                     errors.Add($"module.request {step.StepKey} missing expectedCompletedMessageType");
                 }
 
-                if (!step.Config.TryGetProperty("expectedFailedMessageType", out _))
+                if (string.IsNullOrWhiteSpace(moduleRequest.ExpectedFailedMessageType))
                 {
                     errors.Add($"module.request {step.StepKey} missing expectedFailedMessageType");
                 }

@@ -13,8 +13,22 @@ public sealed record WorkflowStepDefinition(
     string StepKey,
     string TaskType,
     int? TimeoutSeconds,
-    JsonElement Config
+    WorkflowTaskConfig Config
 );
+
+public abstract record WorkflowTaskConfig(string TaskType);
+
+public sealed record ModuleRequestWorkflowTaskConfig(
+    string CommandMessageType,
+    string ExpectedCompletedMessageType,
+    string ExpectedFailedMessageType,
+    JsonElement Payload
+) : WorkflowTaskConfig("module.request");
+
+public sealed record UnknownWorkflowTaskConfig(
+    string UnknownTaskType,
+    JsonElement RawConfig
+) : WorkflowTaskConfig(UnknownTaskType);
 
 public enum WorkflowStepRuntimeStatus
 {
@@ -43,6 +57,11 @@ public sealed record WorkflowRunContext(
     string WorkflowKey,
     int WorkflowVersion,
     JsonElement Inputs
+);
+
+public sealed record WorkflowEventCandidate(
+    WorkflowRunContext RunContext,
+    WorkflowStepRuntimeState Step
 );
 
 public sealed record WorkflowEventMatch(

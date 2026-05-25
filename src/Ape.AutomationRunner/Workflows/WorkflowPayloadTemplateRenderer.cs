@@ -13,11 +13,18 @@ public sealed class WorkflowPayloadTemplateRenderer
         IReadOnlyDictionary<string, JsonElement> stepOutputs
     )
     {
-        object? converted = ConvertElement(payload, workflowInputs, stepOutputs);
-        return JsonSerializer.Deserialize<JsonElement>(JsonSerializer.Serialize(converted));
+        using MemoryStream stream = new();
+        using (Utf8JsonWriter writer = new(stream))
+        {
+            WriteElement(writer, payload, workflowInputs, stepOutputs);
+        }
+
+        using JsonDocument document = JsonDocument.Parse(stream.ToArray());
+        return document.RootElement.Clone();
     }
 
-    private object? ConvertElement(
+    private void WriteElement(
+        Utf8JsonWriter writer,
         JsonElement element,
         JsonElement workflowInputs,
         IReadOnlyDictionary<string, JsonElement> stepOutputs
@@ -25,36 +32,42 @@ public sealed class WorkflowPayloadTemplateRenderer
     {
         if (element.ValueKind == JsonValueKind.Object)
         {
-            Dictionary<string, object?> o = new();
+            writer.WriteStartObject();
             foreach (JsonProperty p in element.EnumerateObject())
             {
-                o[p.Name] = ConvertElement(p.Value, workflowInputs, stepOutputs);
+                writer.WritePropertyName(p.Name);
+                WriteElement(writer, p.Value, workflowInputs, stepOutputs);
             }
 
-            return o;
+            writer.WriteEndObject();
+            return;
         }
 
         if (element.ValueKind == JsonValueKind.Array)
         {
-            List<object?> a = new();
+            writer.WriteStartArray();
             foreach (JsonElement i in element.EnumerateArray())
             {
-                a.Add(ConvertElement(i, workflowInputs, stepOutputs));
+                WriteElement(writer, i, workflowInputs, stepOutputs);
             }
 
-            return a;
+            writer.WriteEndArray();
+            return;
         }
 
         if (element.ValueKind == JsonValueKind.String)
         {
             string value = element.GetString() ?? string.Empty;
-            return PlaceholderRegex.Replace(
-                value,
-                m => ResolvePlaceholder(m.Groups[1].Value, workflowInputs, stepOutputs)
+            writer.WriteStringValue(
+                PlaceholderRegex.Replace(
+                    value,
+                    m => ResolvePlaceholder(m.Groups[1].Value, workflowInputs, stepOutputs)
+                )
             );
+            return;
         }
 
-        return JsonSerializer.Deserialize<object>(element.GetRawText());
+        element.WriteTo(writer);
     }
 
     private string ResolvePlaceholder(

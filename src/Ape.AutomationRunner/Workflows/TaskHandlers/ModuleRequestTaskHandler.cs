@@ -5,6 +5,12 @@ namespace Ape.AutomationRunner.Workflows.TaskHandlers;
 
 public interface IWorkflowRunRepository
 {
+    Task<IReadOnlyList<WorkflowEventCandidate>> GetWaitingStepsExpectingEventAsync(
+        string tenantKey,
+        string messageType,
+        CancellationToken cancellationToken
+    );
+
     Task MarkStepWaitingAsync(
         long workflowRunId,
         string stepKey,
@@ -14,6 +20,25 @@ public interface IWorkflowRunRepository
         DateTimeOffset timeoutAtUtc,
         CancellationToken cancellationToken
     );
+}
+
+public sealed class NullWorkflowRunRepository : IWorkflowRunRepository
+{
+    public Task<IReadOnlyList<WorkflowEventCandidate>> GetWaitingStepsExpectingEventAsync(
+        string tenantKey,
+        string messageType,
+        CancellationToken cancellationToken
+    ) => Task.FromResult<IReadOnlyList<WorkflowEventCandidate>>(Array.Empty<WorkflowEventCandidate>());
+
+    public Task MarkStepWaitingAsync(
+        long workflowRunId,
+        string stepKey,
+        string commandMessageId,
+        string expectedCompletedMessageType,
+        string expectedFailedMessageType,
+        DateTimeOffset timeoutAtUtc,
+        CancellationToken cancellationToken
+    ) => Task.CompletedTask;
 }
 
 public sealed class ModuleRequestTaskHandler(
@@ -32,15 +57,19 @@ public sealed class ModuleRequestTaskHandler(
         CancellationToken cancellationToken
     )
     {
-        JsonElement payloadTemplate = step.Config.GetProperty("payload");
+        if (step.Config is not ModuleRequestWorkflowTaskConfig config)
+        {
+            throw new InvalidOperationException(
+                $"Step {step.StepKey} config must be {nameof(ModuleRequestWorkflowTaskConfig)}."
+            );
+        }
+
+        JsonElement payloadTemplate = config.Payload;
         JsonElement rendered = renderer.Render(payloadTemplate, runContext.Inputs, stepOutputs);
 
-        string messageType = step.Config.GetProperty("commandMessageType").GetString()
-            ?? throw new InvalidOperationException("commandMessageType missing");
-        string expectedCompleted = step.Config.GetProperty("expectedCompletedMessageType").GetString()
-            ?? throw new InvalidOperationException("expectedCompletedMessageType missing");
-        string expectedFailed = step.Config.GetProperty("expectedFailedMessageType").GetString()
-            ?? throw new InvalidOperationException("expectedFailedMessageType missing");
+        string messageType = config.CommandMessageType;
+        string expectedCompleted = config.ExpectedCompletedMessageType;
+        string expectedFailed = config.ExpectedFailedMessageType;
 
         string commandMessageId = Guid.NewGuid().ToString("N");
         Dictionary<string, string> metadata = new()

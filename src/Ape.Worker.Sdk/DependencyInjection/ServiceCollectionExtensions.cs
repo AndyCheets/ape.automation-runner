@@ -9,6 +9,13 @@ namespace Ape.Worker.Sdk.DependencyInjection;
 
 public static class ServiceCollectionExtensions
 {
+    public static IServiceCollection AddMessageHandler<THandler>(this IServiceCollection services)
+        where THandler : class, IMessageHandler
+    {
+        services.AddSingleton<IMessageHandler, THandler>();
+        return services;
+    }
+
     public static IServiceCollection AddApeWorkerSdk(
         this IServiceCollection services,
         IConfiguration configuration

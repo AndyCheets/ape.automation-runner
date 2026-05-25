@@ -2,6 +2,8 @@ using System.Text.Json;
 using Ape.AutomationRunner.Workflows;
 using Ape.AutomationRunner.Workflows.TaskHandlers;
 using Ape.Worker.Sdk.Messaging;
+using Ape.AutomationRunner.Messaging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using NUnit.Framework;
 
@@ -32,6 +34,42 @@ public sealed class WorkflowTests
         WorkflowDefinitionParser p = new();
         WorkflowDefinition d = p.Parse(Yaml);
         Assert.That(d.WorkflowKey, Is.EqualTo("send-test-telegram-message"));
+        Assert.That(d.Steps, Has.Count.EqualTo(1));
+        Assert.That(d.Steps[0].StepKey, Is.EqualTo("send-message"));
+        Assert.That(d.Steps[0].Config, Is.TypeOf<ModuleRequestWorkflowTaskConfig>());
+        ModuleRequestWorkflowTaskConfig config = (ModuleRequestWorkflowTaskConfig)d.Steps[0].Config;
+        Assert.That(config.CommandMessageType, Is.EqualTo("SendTelegramMessage"));
+        Assert.That(config.Payload.GetProperty("message").GetString(), Is.EqualTo("Test"));
+    }
+
+    [Test]
+    public void Parse_MultipleSteps_PreservesYamlOrder()
+    {
+        const string yaml = """
+            workflowKey: ordered
+            version: 1
+            name: Ordered
+            steps:
+              - stepKey: first
+                taskType: module.request
+                config:
+                  commandMessageType: A
+                  expectedCompletedMessageType: ADone
+                  expectedFailedMessageType: AFail
+                  payload: {}
+              - stepKey: second
+                taskType: module.request
+                config:
+                  commandMessageType: B
+                  expectedCompletedMessageType: BDone
+                  expectedFailedMessageType: BFail
+                  payload: {}
+            """;
+
+        WorkflowDefinitionParser p = new();
+        WorkflowDefinition d = p.Parse(yaml);
+
+        Assert.That(d.Steps.Select(s => s.StepKey), Is.EqualTo(new[] { "first", "second" }));
     }
 
     [Test]
@@ -53,8 +91,8 @@ public sealed class WorkflowTests
             "n",
             new[]
             {
-                new WorkflowStepDefinition("a", "module.publish", null, c),
-                new WorkflowStepDefinition("a", "module.publish", null, c),
+                new WorkflowStepDefinition("a", "module.publish", null, new UnknownWorkflowTaskConfig("module.publish", c)),
+                new WorkflowStepDefinition("a", "module.publish", null, new UnknownWorkflowTaskConfig("module.publish", c)),
             }
         );
         Assert.That(v.Validate(d), Has.Some.Contains("duplicate"));
@@ -64,8 +102,11 @@ public sealed class WorkflowTests
     public void Validate_ModuleRequestMissingExpectedCompleted_Rejects()
     {
         WorkflowDefinitionValidator v = new();
-        JsonElement c = JsonSerializer.Deserialize<JsonElement>(
-            """{"commandMessageType":"A","expectedFailedMessageType":"B"}"""
+        ModuleRequestWorkflowTaskConfig c = new(
+            "A",
+            string.Empty,
+            "B",
+            JsonSerializer.Deserialize<JsonElement>("{}")
         );
         WorkflowDefinition d = new(
             "k",
@@ -151,15 +192,11 @@ public sealed class WorkflowTests
         WorkflowPayloadTemplateRenderer r = new();
         ModuleRequestTaskHandler h = new(publisher.Object, r, repo.Object);
 
-        JsonElement c = JsonSerializer.Deserialize<JsonElement>(
-            """
-            {
-              "commandMessageType":"SendTelegramMessage",
-              "expectedCompletedMessageType":"TelegramMessageSent",
-              "expectedFailedMessageType":"TelegramMessageFailed",
-              "payload":{"message":"x"}
-            }
-            """
+        ModuleRequestWorkflowTaskConfig c = new(
+            "SendTelegramMessage",
+            "TelegramMessageSent",
+            "TelegramMessageFailed",
+            JsonSerializer.Deserialize<JsonElement>("""{"message":"x"}""")
         );
         WorkflowRunContext ctx = new(1, "tenant", "corr", "wk", 1, JsonSerializer.Deserialize<JsonElement>("{}"));
         MessageEnvelope cause = Env("RunWorkflow", "tenant", "corr");
@@ -196,6 +233,92 @@ public sealed class WorkflowTests
         );
     }
 
+    [Test]
+    public async Task ProgressHandler_NoInProgressRuns_IgnoresEvent()
+    {
+        Mock<IWorkflowRunRepository> repo = new();
+        repo.Setup(
+                r => r.GetWaitingStepsExpectingEventAsync(
+                    "tenant",
+                    "TelegramMessageSent",
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(Array.Empty<WorkflowEventCandidate>());
+
+        WorkflowProgressEventHandler handler = new(
+            repo.Object,
+            new WorkflowEventMatcher(),
+            NullLogger<WorkflowProgressEventHandler>.Instance
+        );
+
+        await handler.HandleAsync(Env("TelegramMessageSent", "tenant", "corr"), CancellationToken.None);
+
+        repo.Verify(
+            r => r.GetWaitingStepsExpectingEventAsync(
+                "tenant",
+                "TelegramMessageSent",
+                It.IsAny<CancellationToken>()
+            ),
+            Times.Once
+        );
+    }
+
+    [Test]
+    public async Task ProgressHandler_QueryFiltersByExpectedEvent()
+    {
+        Mock<IWorkflowRunRepository> repo = new();
+        repo.Setup(
+                r => r.GetWaitingStepsExpectingEventAsync(
+                    "tenant",
+                    "TelegramMessageSent",
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(new[] { Candidate("tenant", "corr", "TelegramMessageSent", "TelegramMessageFailed") });
+
+        WorkflowProgressEventHandler handler = new(
+            repo.Object,
+            new WorkflowEventMatcher(),
+            NullLogger<WorkflowProgressEventHandler>.Instance
+        );
+
+        await handler.HandleAsync(Env("TelegramMessageSent", "tenant", "corr"), CancellationToken.None);
+
+        repo.Verify(
+            r => r.GetWaitingStepsExpectingEventAsync(
+                "tenant",
+                "TelegramMessageSent",
+                It.IsAny<CancellationToken>()
+            ),
+            Times.Once
+        );
+    }
+
+    [Test]
+    public void ProgressHandler_ExpectedEventWithWrongCorrelation_DoesNotThrow()
+    {
+        Mock<IWorkflowRunRepository> repo = new();
+        repo.Setup(
+                r => r.GetWaitingStepsExpectingEventAsync(
+                    "tenant",
+                    "TelegramMessageSent",
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(new[] { Candidate("tenant", "other-corr", "TelegramMessageSent", "TelegramMessageFailed") });
+
+        WorkflowProgressEventHandler handler = new(
+            repo.Object,
+            new WorkflowEventMatcher(),
+            NullLogger<WorkflowProgressEventHandler>.Instance
+        );
+
+        Assert.DoesNotThrowAsync(
+            () => handler.HandleAsync(Env("TelegramMessageSent", "tenant", "corr"), CancellationToken.None)
+        );
+    }
+
     private static MessageEnvelope Env(string type, string tenant, string correlation)
         => new(
             Guid.NewGuid().ToString("N"),
@@ -209,4 +332,31 @@ public sealed class WorkflowTests
             new Dictionary<string, string>(),
             JsonSerializer.Deserialize<JsonElement>("{}")
         );
+
+    private static WorkflowEventCandidate Candidate(
+        string tenant,
+        string correlation,
+        string completedMessageType,
+        string failedMessageType
+    )
+    {
+        WorkflowRunContext context = new(
+            1,
+            tenant,
+            correlation,
+            "workflow",
+            1,
+            JsonSerializer.Deserialize<JsonElement>("{}")
+        );
+        WorkflowStepRuntimeState step = new(
+            1,
+            "step",
+            "module.request",
+            WorkflowStepRuntimeStatus.Waiting,
+            completedMessageType,
+            failedMessageType,
+            null
+        );
+        return new WorkflowEventCandidate(context, step);
+    }
 }
