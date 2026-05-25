@@ -15,6 +15,7 @@ public static class ServiceCollectionExtensions
         services.AddOptions<MigrationOptions>().Bind(configuration.GetSection("Migrations"));
         services.AddSingleton<MessageEnvelopeSerializer>();
         services.AddSingleton<IMessageHandlerRegistry, MessageHandlerRegistry>();
+        services.AddSingleton<IMessagePublisher, NullMessagePublisher>();
         services.AddHostedService<RabbitMqConsumerHostedService>();
         services.AddSingleton<IDatabaseMigrator, NullDatabaseMigrator>();
         return services;

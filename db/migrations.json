@@ -1,1 +1,9 @@
-{"migrations":[{"migrationId":"001_create_worker_migration_history","file":"sql/001_create_worker_migration_history.sql"}]}
+{
+  "migrations": [
+    "sql/001_create_worker_migration_history.sql",
+    "sql/001_create_workflow_definitions.sql",
+    "sql/002_create_workflow_runs.sql",
+    "sql/003_create_workflow_run_steps.sql",
+    "sql/004_seed_send_test_telegram_message_workflow.sql"
+  ]
+}
