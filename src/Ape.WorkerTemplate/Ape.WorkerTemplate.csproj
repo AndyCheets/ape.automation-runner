@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+  <PropertyGroup><TargetFramework>net9.0</TargetFramework></PropertyGroup>
+  <ItemGroup><ProjectReference Include="..\Ape.Worker.Sdk\Ape.Worker.Sdk.csproj" /></ItemGroup>
+</Project>
