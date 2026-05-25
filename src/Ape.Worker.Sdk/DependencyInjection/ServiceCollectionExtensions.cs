@@ -16,8 +16,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<MessageEnvelopeSerializer>();
         services.AddSingleton<IMessageHandlerRegistry, MessageHandlerRegistry>();
         services.AddSingleton<IMessagePublisher, NullMessagePublisher>();
-        services.AddHostedService<RabbitMqConsumerHostedService>();
         services.AddSingleton<IDatabaseMigrator, NullDatabaseMigrator>();
+        services.AddHostedService<StartupMigrationHostedService>();
+        services.AddHostedService<RabbitMqConsumerHostedService>();
         return services;
     }
     public static IServiceCollection AddMessageHandler<THandler>(this IServiceCollection services) where THandler : class, IMessageHandler
