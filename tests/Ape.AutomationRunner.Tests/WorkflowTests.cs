@@ -210,11 +210,10 @@ public sealed class WorkflowTests
         );
 
         publisher.Verify(
-            p => p.PublishAsync(
+            p => p.PublishCommandAsync(
                 It.Is<MessageEnvelope>(
                     e => e.CorrelationId == "corr" && e.MessageType == "SendTelegramMessage"
                 ),
-                "SendTelegramMessage",
                 It.IsAny<CancellationToken>()
             ),
             Times.Once

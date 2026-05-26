@@ -93,7 +93,7 @@ public sealed class ModuleRequestTaskHandler(
             rendered
         );
 
-        await publisher.PublishAsync(envelope, messageType, cancellationToken);
+        await publisher.PublishCommandAsync(envelope, cancellationToken);
 
         DateTimeOffset timeoutAtUtc = DateTimeOffset.UtcNow.AddSeconds(step.TimeoutSeconds ?? 300);
         await workflowRunRepository.MarkStepWaitingAsync(

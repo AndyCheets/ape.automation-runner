@@ -1,11 +1,11 @@
 {
   "name": "Ape Automation Runner DevContainer",
   "dockerComposeFile": "docker-compose.yml",
-  "service": "devcontainer",
+  "service": "automation-runner-devcontainer",
   "workspaceFolder": "/workspace/ape.automation-runner",
   "remoteUser": "vscode",
   "updateRemoteUserUID": true,
-  "forwardPorts": [8080, 5672, 15672],
+  "forwardPorts": [8081, 5672, 15672],
   "customizations": {
     "vscode": {
       "extensions": [
