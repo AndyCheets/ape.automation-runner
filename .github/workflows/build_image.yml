@@ -42,6 +42,7 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.ACTION_PAT }}
+          submodules: recursive
 
       - name: Extract Docker metadata
         id: meta
