@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk.Worker">
   <PropertyGroup><TargetFramework>net9.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings></PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../Ape.Worker.Sdk/Ape.Worker.Sdk.csproj" />
+    <ProjectReference Include="../../submodules/ape-worker-sdk/Ape.Worker.Sdk.csproj" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.0" />
     <PackageReference Include="YamlDotNet" Version="16.2.0" />
     <PackageReference Include="MySqlConnector" Version="2.4.0" />
