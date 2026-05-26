@@ -1,6 +1,6 @@
-[submodule "submodules/ape-worker-sdk"]
-	path = submodules/ape-worker-sdk
-	url = https://github.com/AndyCheets/Ape.Worker.SDK.git
 [submodule "submodules/ape-wiki"]
 	path = submodules/ape-wiki
 	url = https://github.com/AndyCheets/ape-wiki.git
+[submodule "submodules/ape-worker-sdk"]
+	path = submodules/ape-worker-sdk
+	url = https://github.com/AndyCheets/Ape.Worker.SDK.git
