@@ -1,1 +1,20 @@
-{ "name": "ape-worker-template", "build": { "dockerfile": "Dockerfile" } }
+{
+  "name": "Ape Automation Runner DevContainer",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "devcontainer",
+  "workspaceFolder": "/workspace/ape.automation-runner",
+  "forwardPorts": [8080, 5672, 15672],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-dotnettools.csharp",
+        "ms-dotnettools.csdevkit",
+        "editorconfig.editorconfig",
+        "redhat.vscode-yaml",
+        "ms-azuretools.vscode-docker",
+        "openai.chatgpt"
+      ]
+    }
+  },
+  "postCreateCommand": "bash .devcontainer/post-create.sh"
+}

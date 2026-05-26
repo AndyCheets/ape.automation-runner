@@ -2,3 +2,4 @@ bin/
 obj/
 .vscode/
 .env
+.env.local
