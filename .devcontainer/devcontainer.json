@@ -3,6 +3,8 @@
   "dockerComposeFile": "docker-compose.yml",
   "service": "devcontainer",
   "workspaceFolder": "/workspace/ape.automation-runner",
+  "remoteUser": "vscode",
+  "updateRemoteUserUID": true,
   "forwardPorts": [8080, 5672, 15672],
   "customizations": {
     "vscode": {
