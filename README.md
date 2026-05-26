@@ -53,5 +53,6 @@ When workers are configured with `AddApeWorkerSdk`, the SDK automatically runs s
 
 - Set `Migrations__Enabled=true` to run migrations on startup.
 - Set `Migrations__Enabled=false` to disable startup migrations.
+- Set `ControlApi__BaseUrl`, `ControlApi__TenantDatabasesPath`, and `ControlApi__BearerToken` so the worker can resolve tenant database connection details before applying module migrations.
 - Startup fails if migration execution fails, preventing message consumption with an out-of-date schema.
 - Future worker services do not need to manually register a migration hosted service when they use `AddApeWorkerSdk`.

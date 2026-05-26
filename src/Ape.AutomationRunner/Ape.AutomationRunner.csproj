@@ -6,4 +6,11 @@
     <PackageReference Include="YamlDotNet" Version="16.2.0" />
     <PackageReference Include="MySqlConnector" Version="2.4.0" />
   </ItemGroup>
+  <ItemGroup>
+    <Content Include="../../db/**/*">
+      <Link>db/%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
 </Project>
