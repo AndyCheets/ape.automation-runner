@@ -4,6 +4,8 @@
     "sql/001_create_workflow_definitions.sql",
     "sql/002_create_workflow_runs.sql",
     "sql/003_create_workflow_run_steps.sql",
-    "sql/004_seed_send_test_telegram_message_workflow.sql"
+    "sql/004_seed_send_test_telegram_message_workflow.sql",
+    "sql/005_sequential_workflow_v1_support.sql",
+    "sql/006_update_ai_telegram_test_payload.sql"
   ]
 }

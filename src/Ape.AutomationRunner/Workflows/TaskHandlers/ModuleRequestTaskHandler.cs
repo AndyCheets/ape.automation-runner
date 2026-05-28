@@ -29,6 +29,18 @@ public interface IWorkflowRunRepository
         CancellationToken cancellationToken
     );
 
+    Task<WorkflowEventCandidate?> GetWaitingWorkflowByCorrelationAsync(
+        string tenantKey,
+        string correlationId,
+        CancellationToken cancellationToken
+    );
+
+    Task<IReadOnlyDictionary<string, JsonElement>> GetCompletedStepOutputsAsync(
+        string tenantKey,
+        long workflowRunId,
+        CancellationToken cancellationToken
+    );
+
     Task<IReadOnlyList<WorkflowEventCandidate>> GetWaitingStepsExpectingEventAsync(
         string tenantKey,
         string messageType,
@@ -40,9 +52,35 @@ public interface IWorkflowRunRepository
         long workflowRunId,
         string stepKey,
         string commandMessageId,
+        string commandMessageType,
         string expectedCompletedMessageType,
         string expectedFailedMessageType,
+        JsonElement resolvedInputPayload,
         DateTimeOffset timeoutAtUtc,
+        CancellationToken cancellationToken
+    );
+
+    Task MarkWorkflowWaitingAsync(
+        string tenantKey,
+        long workflowRunId,
+        string currentStepKey,
+        DateTimeOffset updatedAtUtc,
+        CancellationToken cancellationToken
+    );
+
+    Task MarkStepCompletedAsync(
+        string tenantKey,
+        long workflowRunId,
+        string stepKey,
+        JsonElement outputs,
+        DateTimeOffset completedAtUtc,
+        CancellationToken cancellationToken
+    );
+
+    Task MarkWorkflowCompletedAsync(
+        string tenantKey,
+        long workflowRunId,
+        DateTimeOffset completedAtUtc,
         CancellationToken cancellationToken
     );
 
@@ -86,6 +124,20 @@ public sealed class NullWorkflowRunRepository : IWorkflowRunRepository
         CancellationToken cancellationToken
     ) => Task.CompletedTask;
 
+    public Task<WorkflowEventCandidate?> GetWaitingWorkflowByCorrelationAsync(
+        string tenantKey,
+        string correlationId,
+        CancellationToken cancellationToken
+    ) => Task.FromResult<WorkflowEventCandidate?>(null);
+
+    public Task<IReadOnlyDictionary<string, JsonElement>> GetCompletedStepOutputsAsync(
+        string tenantKey,
+        long workflowRunId,
+        CancellationToken cancellationToken
+    ) => Task.FromResult<IReadOnlyDictionary<string, JsonElement>>(
+        new Dictionary<string, JsonElement>()
+    );
+
     public Task<IReadOnlyList<WorkflowEventCandidate>> GetWaitingStepsExpectingEventAsync(
         string tenantKey,
         string messageType,
@@ -97,9 +149,35 @@ public sealed class NullWorkflowRunRepository : IWorkflowRunRepository
         long workflowRunId,
         string stepKey,
         string commandMessageId,
+        string commandMessageType,
         string expectedCompletedMessageType,
         string expectedFailedMessageType,
+        JsonElement resolvedInputPayload,
         DateTimeOffset timeoutAtUtc,
+        CancellationToken cancellationToken
+    ) => Task.CompletedTask;
+
+    public Task MarkWorkflowWaitingAsync(
+        string tenantKey,
+        long workflowRunId,
+        string currentStepKey,
+        DateTimeOffset updatedAtUtc,
+        CancellationToken cancellationToken
+    ) => Task.CompletedTask;
+
+    public Task MarkStepCompletedAsync(
+        string tenantKey,
+        long workflowRunId,
+        string stepKey,
+        JsonElement outputs,
+        DateTimeOffset completedAtUtc,
+        CancellationToken cancellationToken
+    ) => Task.CompletedTask;
+
+    public Task MarkWorkflowCompletedAsync(
+        string tenantKey,
+        long workflowRunId,
+        DateTimeOffset completedAtUtc,
         CancellationToken cancellationToken
     ) => Task.CompletedTask;
 
@@ -148,7 +226,12 @@ public sealed class ModuleRequestTaskHandler(
         }
 
         JsonElement payloadTemplate = config.Payload;
-        JsonElement rendered = renderer.Render(payloadTemplate, runContext.Inputs, stepOutputs);
+        JsonElement rendered = renderer.Render(
+            payloadTemplate,
+            runContext.Inputs,
+            stepOutputs,
+            runContext.CorrelationId
+        );
 
         string messageType = config.CommandMessageType;
         string expectedCompleted = config.ExpectedCompletedMessageType;
@@ -170,7 +253,7 @@ public sealed class ModuleRequestTaskHandler(
         MessageEnvelope envelope = new(
             commandMessageId,
             runContext.CorrelationId,
-            causeEnvelope.MessageId,
+            null,
             runContext.TenantKey,
             source,
             messageType,
@@ -201,8 +284,10 @@ public sealed class ModuleRequestTaskHandler(
             runContext.WorkflowRunId,
             step.StepKey,
             commandMessageId,
+            messageType,
             expectedCompleted,
             expectedFailed,
+            rendered,
             timeoutAtUtc,
             cancellationToken
         );

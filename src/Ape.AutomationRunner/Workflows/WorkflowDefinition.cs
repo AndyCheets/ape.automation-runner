@@ -10,13 +10,23 @@ public sealed record WorkflowDefinition(
 );
 
 public sealed record WorkflowStepDefinition(
-    string StepKey,
-    string TaskType,
+    string Id,
+    string Type,
     int? TimeoutSeconds,
     WorkflowTaskConfig Config
-);
+)
+{
+    public string StepKey => Id;
+    public string TaskType => Type;
+}
 
 public abstract record WorkflowTaskConfig(string TaskType);
+
+public sealed record CommandWorkflowTaskConfig(
+    string MessageType,
+    JsonElement Payload,
+    bool PayloadWasPresent = true
+) : WorkflowTaskConfig("command");
 
 public sealed record ModuleRequestWorkflowTaskConfig(
     string CommandMessageType,
@@ -35,20 +45,28 @@ public enum WorkflowStepRuntimeStatus
     Pending,
     Running,
     Waiting,
+    WaitingForEvent,
     Completed,
     Failed,
     TimedOut,
+    Skipped,
 }
 
 public sealed record WorkflowStepRuntimeState(
     long WorkflowRunId,
-    string StepKey,
-    string TaskType,
+    string Id,
+    string Type,
     WorkflowStepRuntimeStatus Status,
+    string? CommandMessageType,
     string? ExpectedCompletedMessageType,
     string? ExpectedFailedMessageType,
-    string? CommandMessageId
-);
+    string? CommandMessageId,
+    JsonElement? Outputs = null
+)
+{
+    public string StepKey => Id;
+    public string TaskType => Type;
+}
 
 public sealed record WorkflowRunContext(
     long WorkflowRunId,

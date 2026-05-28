@@ -9,14 +9,15 @@ public sealed class WorkflowPayloadTemplateRenderer
 
     public JsonElement Render(
         JsonElement payload,
-        JsonElement workflowInputs,
-        IReadOnlyDictionary<string, JsonElement> stepOutputs
+        JsonElement triggerPayload,
+        IReadOnlyDictionary<string, JsonElement> stepOutputs,
+        string correlationId = ""
     )
     {
         using MemoryStream stream = new();
         using (Utf8JsonWriter writer = new(stream))
         {
-            WriteElement(writer, payload, workflowInputs, stepOutputs);
+            WriteElement(writer, payload, triggerPayload, stepOutputs, correlationId);
         }
 
         using JsonDocument document = JsonDocument.Parse(stream.ToArray());
@@ -26,8 +27,9 @@ public sealed class WorkflowPayloadTemplateRenderer
     private void WriteElement(
         Utf8JsonWriter writer,
         JsonElement element,
-        JsonElement workflowInputs,
-        IReadOnlyDictionary<string, JsonElement> stepOutputs
+        JsonElement triggerPayload,
+        IReadOnlyDictionary<string, JsonElement> stepOutputs,
+        string correlationId
     )
     {
         if (element.ValueKind == JsonValueKind.Object)
@@ -36,7 +38,7 @@ public sealed class WorkflowPayloadTemplateRenderer
             foreach (JsonProperty p in element.EnumerateObject())
             {
                 writer.WritePropertyName(p.Name);
-                WriteElement(writer, p.Value, workflowInputs, stepOutputs);
+                WriteElement(writer, p.Value, triggerPayload, stepOutputs, correlationId);
             }
 
             writer.WriteEndObject();
@@ -48,7 +50,7 @@ public sealed class WorkflowPayloadTemplateRenderer
             writer.WriteStartArray();
             foreach (JsonElement i in element.EnumerateArray())
             {
-                WriteElement(writer, i, workflowInputs, stepOutputs);
+                WriteElement(writer, i, triggerPayload, stepOutputs, correlationId);
             }
 
             writer.WriteEndArray();
@@ -58,29 +60,52 @@ public sealed class WorkflowPayloadTemplateRenderer
         if (element.ValueKind == JsonValueKind.String)
         {
             string value = element.GetString() ?? string.Empty;
-            writer.WriteStringValue(
-                PlaceholderRegex.Replace(
-                    value,
-                    m => ResolvePlaceholder(m.Groups[1].Value, workflowInputs, stepOutputs)
+            MatchCollection matches = PlaceholderRegex.Matches(value);
+            if (matches.Count == 1 && matches[0].Value.Length == value.Length)
+            {
+                JsonElement resolved = ResolvePlaceholderElement(
+                    matches[0].Groups[1].Value,
+                    triggerPayload,
+                    stepOutputs,
+                    correlationId
+                );
+                resolved.WriteTo(writer);
+                return;
+            }
+
+            writer.WriteStringValue(PlaceholderRegex.Replace(value, m =>
+                ElementToTemplateString(
+                    ResolvePlaceholderElement(
+                        m.Groups[1].Value,
+                        triggerPayload,
+                        stepOutputs,
+                        correlationId
+                    )
                 )
-            );
+            ));
             return;
         }
 
         element.WriteTo(writer);
     }
 
-    private string ResolvePlaceholder(
+    private JsonElement ResolvePlaceholderElement(
         string expression,
-        JsonElement workflowInputs,
-        IReadOnlyDictionary<string, JsonElement> stepOutputs
+        JsonElement triggerPayload,
+        IReadOnlyDictionary<string, JsonElement> stepOutputs,
+        string correlationId
     )
     {
         string[] parts = expression.Split('.', StringSplitOptions.RemoveEmptyEntries);
 
-        if (parts.Length >= 3 && parts[0] == "workflow" && parts[1] == "inputs")
+        if (parts.Length == 1 && parts[0] == "correlationId")
         {
-            return ResolveJson(workflowInputs, parts.Skip(2).ToArray());
+            return JsonSerializer.SerializeToElement(correlationId);
+        }
+
+        if (parts.Length >= 3 && parts[0] == "trigger" && parts[1] == "payload")
+        {
+            return ResolveJson(triggerPayload, parts.Skip(2).ToArray(), expression);
         }
 
         if (parts.Length >= 4
@@ -88,13 +113,13 @@ public sealed class WorkflowPayloadTemplateRenderer
             && parts[2] == "outputs"
             && stepOutputs.TryGetValue(parts[1], out JsonElement output))
         {
-            return ResolveJson(output, parts.Skip(3).ToArray());
+            return ResolveJson(output, parts.Skip(3).ToArray(), expression);
         }
 
-        throw new InvalidOperationException($"Unknown placeholder: {expression}");
+        throw new InvalidOperationException($"Unsupported template expression: {expression}");
     }
 
-    private static string ResolveJson(JsonElement element, string[] path)
+    private static JsonElement ResolveJson(JsonElement element, string[] path, string expression)
     {
         JsonElement current = element;
         foreach (string segment in path)
@@ -103,13 +128,21 @@ public sealed class WorkflowPayloadTemplateRenderer
                 || !current.TryGetProperty(segment, out current))
             {
                 throw new InvalidOperationException(
-                    $"Cannot resolve placeholder path: {string.Join('.', path)}"
+                    $"Missing value for template expression: {expression}"
                 );
             }
         }
 
-        return current.ValueKind == JsonValueKind.String
-            ? current.GetString() ?? string.Empty
-            : current.ToString();
+        return current;
+    }
+
+    private static string ElementToTemplateString(JsonElement element)
+    {
+        if (element.ValueKind == JsonValueKind.String)
+        {
+            return element.GetString() ?? string.Empty;
+        }
+
+        return element.GetRawText();
     }
 }

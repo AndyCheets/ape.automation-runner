@@ -19,6 +19,7 @@ public static class ServiceCollectionExtensions
             .Bind(configuration.GetSection("WorkflowRunner"));
 
         services.AddSingleton<WorkflowDefinitionParser>();
+        services.AddSingleton<MessageContractRegistry>();
         services.AddSingleton<WorkflowDefinitionValidator>();
         services.AddSingleton<WorkflowPayloadTemplateRenderer>();
         services.AddSingleton<WorkflowEventMatcher>();
@@ -26,7 +27,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IWorkflowRunRepository, WorkflowRunRepository>();
         services.AddSingleton<WorkflowTaskHandlerRegistry>();
         services.AddSingleton<IWorkflowExecutionEngine, WorkflowExecutionEngine>();
-        services.AddSingleton<IWorkflowTaskHandler, ModuleRequestTaskHandler>();
+        services.AddSingleton<IWorkflowTaskHandler, CommandWorkflowTaskHandler>();
         services.AddHostedService<WorkflowTimeoutMonitorHostedService>();
 
         return services;

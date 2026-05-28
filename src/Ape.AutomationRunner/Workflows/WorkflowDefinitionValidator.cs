@@ -1,7 +1,10 @@
 namespace Ape.AutomationRunner.Workflows;
 
-public sealed class WorkflowDefinitionValidator
+public sealed class WorkflowDefinitionValidator(MessageContractRegistry? messageContractRegistry = null)
 {
+    private readonly MessageContractRegistry _messageContractRegistry =
+        messageContractRegistry ?? new MessageContractRegistry();
+
     public IReadOnlyList<string> Validate(WorkflowDefinition definition)
     {
         List<string> errors = new();
@@ -31,41 +34,42 @@ public sealed class WorkflowDefinitionValidator
         {
             if (string.IsNullOrWhiteSpace(step.StepKey))
             {
-                errors.Add("stepKey is required");
+                errors.Add("step id is required");
             }
 
             if (!stepKeys.Add(step.StepKey))
             {
-                errors.Add($"duplicate stepKey: {step.StepKey}");
+                errors.Add($"duplicate step id: {step.StepKey}");
             }
 
-            if (string.IsNullOrWhiteSpace(step.TaskType))
+            if (step.TaskType != "command")
             {
-                errors.Add($"taskType is required for {step.StepKey}");
+                errors.Add($"unsupported step type for {step.StepKey}: {step.TaskType}");
+                continue;
             }
 
-            if (step.TaskType == "module.request")
+            if (step.Config is not CommandWorkflowTaskConfig command)
             {
-                if (step.Config is not ModuleRequestWorkflowTaskConfig moduleRequest)
-                {
-                    errors.Add($"module.request {step.StepKey} has invalid config");
-                    continue;
-                }
+                errors.Add($"command step {step.StepKey} has invalid config");
+                continue;
+            }
 
-                if (string.IsNullOrWhiteSpace(moduleRequest.CommandMessageType))
-                {
-                    errors.Add($"module.request {step.StepKey} missing commandMessageType");
-                }
+            if (string.IsNullOrWhiteSpace(command.MessageType))
+            {
+                errors.Add($"command step {step.StepKey} missing messageType");
+            }
+            else if (!_messageContractRegistry.IsRegistered(command.MessageType))
+            {
+                errors.Add($"unknown messageType for {step.StepKey}: {command.MessageType}");
+            }
 
-                if (string.IsNullOrWhiteSpace(moduleRequest.ExpectedCompletedMessageType))
-                {
-                    errors.Add($"module.request {step.StepKey} missing expectedCompletedMessageType");
-                }
-
-                if (string.IsNullOrWhiteSpace(moduleRequest.ExpectedFailedMessageType))
-                {
-                    errors.Add($"module.request {step.StepKey} missing expectedFailedMessageType");
-                }
+            if (!command.PayloadWasPresent)
+            {
+                errors.Add($"command step {step.StepKey} payload is required");
+            }
+            else if (command.Payload.ValueKind != System.Text.Json.JsonValueKind.Object)
+            {
+                errors.Add($"command step {step.StepKey} payload must be an object");
             }
         }
 

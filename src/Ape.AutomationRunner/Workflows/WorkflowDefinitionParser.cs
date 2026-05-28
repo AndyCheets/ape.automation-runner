@@ -33,7 +33,9 @@ public sealed class WorkflowDefinitionParser
                     continue;
                 }
 
-                string taskType = GetScalar(step, "taskType") ?? string.Empty;
+                string taskType = GetScalar(step, "type")
+                    ?? GetScalar(step, "taskType")
+                    ?? string.Empty;
                 int? timeoutSeconds = int.TryParse(GetScalar(step, "timeoutSeconds"), out int timeout)
                     ? timeout
                     : null;
@@ -41,7 +43,7 @@ public sealed class WorkflowDefinitionParser
                 WorkflowTaskConfig config = ParseTaskConfig(taskType, step);
                 steps.Add(
                     new WorkflowStepDefinition(
-                        GetScalar(step, "stepKey") ?? string.Empty,
+                        GetScalar(step, "id") ?? GetScalar(step, "stepKey") ?? string.Empty,
                         taskType,
                         timeoutSeconds,
                         config
@@ -59,6 +61,20 @@ public sealed class WorkflowDefinitionParser
             && configNode is YamlMappingNode configMapping
                 ? configMapping
                 : new YamlMappingNode();
+
+        if (taskType == "command")
+        {
+            bool payloadWasPresent = TryGetValue(step, "payload", out YamlNode? payloadNode);
+            JsonElement payload = payloadWasPresent && payloadNode is not null
+                ? ToJsonElement(payloadNode)
+                : ToJsonElement(new YamlMappingNode());
+
+            return new CommandWorkflowTaskConfig(
+                GetScalar(step, "messageType") ?? string.Empty,
+                payload,
+                payloadWasPresent
+            );
+        }
 
         if (taskType == "module.request")
         {
