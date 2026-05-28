@@ -22,7 +22,10 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<WorkflowDefinitionValidator>();
         services.AddSingleton<WorkflowPayloadTemplateRenderer>();
         services.AddSingleton<WorkflowEventMatcher>();
-        services.AddSingleton<IWorkflowRunRepository, NullWorkflowRunRepository>();
+        services.AddSingleton<IWorkflowDefinitionRepository, WorkflowDefinitionRepository>();
+        services.AddSingleton<IWorkflowRunRepository, WorkflowRunRepository>();
+        services.AddSingleton<WorkflowTaskHandlerRegistry>();
+        services.AddSingleton<IWorkflowExecutionEngine, WorkflowExecutionEngine>();
         services.AddSingleton<IWorkflowTaskHandler, ModuleRequestTaskHandler>();
         services.AddHostedService<WorkflowTimeoutMonitorHostedService>();
 

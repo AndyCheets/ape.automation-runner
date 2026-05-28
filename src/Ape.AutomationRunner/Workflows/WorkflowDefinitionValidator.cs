@@ -21,6 +21,11 @@ public sealed class WorkflowDefinitionValidator
             errors.Add("name is required");
         }
 
+        if (definition.Steps.Count == 0)
+        {
+            errors.Add("at least one step is required");
+        }
+
         HashSet<string> stepKeys = new(StringComparer.OrdinalIgnoreCase);
         foreach (WorkflowStepDefinition step in definition.Steps)
         {

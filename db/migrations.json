@@ -1,6 +1,6 @@
 {
   "migrations": [
-    "sql/001_create_worker_migration_history.sql",
+    "sql/001_create_module_schema_migrations.sql",
     "sql/001_create_workflow_definitions.sql",
     "sql/002_create_workflow_runs.sql",
     "sql/003_create_workflow_run_steps.sql",

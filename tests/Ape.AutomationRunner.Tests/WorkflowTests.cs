@@ -3,7 +3,10 @@ using Ape.AutomationRunner.Workflows;
 using Ape.AutomationRunner.Workflows.TaskHandlers;
 using Ape.Worker.Sdk.Messaging;
 using Ape.AutomationRunner.Messaging;
+using Ape.AutomationRunner.Configuration;
+using Ape.Worker.Sdk.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Moq;
 using NUnit.Framework;
 
@@ -24,9 +27,110 @@ public sealed class WorkflowTests
               expectedCompletedMessageType: TelegramMessageSent
               expectedFailedMessageType: TelegramMessageFailed
               payload:
-                destinationKey: bite-main-telegram
+                recipient_id: 7f9c6bd4-3c3c-4e1e-9f3d-4ce8b93b8f12
                 message: Test
         """;
+
+    private const string SeedYaml = """
+        workflowKey: send-test-telegram-message
+        version: 1
+        name: Send Test Telegram Message
+        steps:
+          - stepKey: send-message
+            taskType: module.request
+            timeoutSeconds: 120
+            config:
+              commandMessageType: SendTelegramMessage
+              expectedCompletedMessageType: TelegramMessageSent
+              expectedFailedMessageType: TelegramMessageFailed
+              payload:
+                recipient_id: 7f9c6bd4-3c3c-4e1e-9f3d-4ce8b93b8f12
+                message: "Test message from Ape.AutomationRunner"
+        """;
+
+    [Test]
+    public async Task RunWorkflowCommandHandler_HandleAsync_ValidRunWorkflowCommand_StartsWorkflowExecution()
+    {
+        Mock<IWorkflowExecutionEngine> engine = new();
+        RunWorkflowCommandHandler handler = new(
+            engine.Object,
+            NullLogger<RunWorkflowCommandHandler>.Instance
+        );
+        MessageEnvelope envelope = Env(
+            "RunWorkflow",
+            "tenant",
+            "corr",
+            """{"workflowKey":"send-test-telegram-message","workflowVersion":1,"inputs":{}}"""
+        );
+
+        await handler.HandleAsync(envelope, CancellationToken.None);
+
+        engine.Verify(
+            e => e.StartWorkflowAsync(
+                envelope,
+                It.Is<RunWorkflowCommand>(
+                    c => c.WorkflowKey == "send-test-telegram-message"
+                        && c.WorkflowVersion == 1
+                ),
+                It.IsAny<CancellationToken>()
+            ),
+            Times.Once
+        );
+    }
+
+    [Test]
+    public async Task WorkflowExecutionEngine_StartWorkflowAsync_ValidWorkflow_CreatesWorkflowRun()
+    {
+        FakeWorkflowDefinitionRepository definitions = new(SeedYaml);
+        FakeWorkflowRunRepository runs = new();
+        RecordingWorkflowTaskHandler taskHandler = new();
+        WorkflowExecutionEngine engine = Engine(definitions, runs, taskHandler);
+        MessageEnvelope envelope = Env(
+            "RunWorkflow",
+            "tenant",
+            "corr",
+            """{"workflowKey":"send-test-telegram-message","workflowVersion":1,"inputs":{}}"""
+        );
+
+        await engine.StartWorkflowAsync(
+            envelope,
+            new RunWorkflowCommand(
+                "send-test-telegram-message",
+                1,
+                JsonSerializer.Deserialize<JsonElement>("{}")
+            ),
+            CancellationToken.None
+        );
+
+        Assert.That(runs.CreatedRun, Is.Not.Null);
+        Assert.That(runs.CreatedRun!.TenantKey, Is.EqualTo("tenant"));
+        Assert.That(runs.CreatedRun.CorrelationId, Is.EqualTo("corr"));
+    }
+
+    [Test]
+    public async Task WorkflowExecutionEngine_StartWorkflowAsync_ValidWorkflow_ExecutesFirstStep()
+    {
+        FakeWorkflowRunRepository runs = new();
+        RecordingWorkflowTaskHandler taskHandler = new();
+        WorkflowExecutionEngine engine = Engine(
+            new FakeWorkflowDefinitionRepository(SeedYaml),
+            runs,
+            taskHandler
+        );
+
+        await engine.StartWorkflowAsync(
+            Env("RunWorkflow", "tenant", "corr"),
+            new RunWorkflowCommand(
+                "send-test-telegram-message",
+                1,
+                JsonSerializer.Deserialize<JsonElement>("{}")
+            ),
+            CancellationToken.None
+        );
+
+        Assert.That(taskHandler.HandledStep?.StepKey, Is.EqualTo("send-message"));
+        Assert.That(taskHandler.HandledRunContext?.CorrelationId, Is.EqualTo("corr"));
+    }
 
     [Test]
     public void Parse_ValidTelegramYaml_Parses()
@@ -190,7 +294,7 @@ public sealed class WorkflowTests
         Mock<IMessagePublisher> publisher = new();
         Mock<IWorkflowRunRepository> repo = new();
         WorkflowPayloadTemplateRenderer r = new();
-        ModuleRequestTaskHandler h = new(publisher.Object, r, repo.Object);
+        ModuleRequestTaskHandler h = ModuleHandler(publisher.Object, r, repo.Object);
 
         ModuleRequestWorkflowTaskConfig c = new(
             "SendTelegramMessage",
@@ -220,6 +324,7 @@ public sealed class WorkflowTests
         );
         repo.Verify(
             rp => rp.MarkStepWaitingAsync(
+                "tenant",
                 1,
                 "s",
                 It.IsAny<string>(),
@@ -229,6 +334,122 @@ public sealed class WorkflowTests
                 It.IsAny<CancellationToken>()
             ),
             Times.Once
+        );
+    }
+
+    [Test]
+    public async Task ModuleRequestTaskHandler_ExecuteAsync_HardCodedTelegramPayload_PublishesSendTelegramMessage()
+    {
+        Mock<IMessagePublisher> publisher = new();
+        FakeWorkflowRunRepository repo = new();
+        ModuleRequestTaskHandler handler = ModuleHandler(
+            publisher.Object,
+            new WorkflowPayloadTemplateRenderer(),
+            repo
+        );
+        WorkflowDefinition definition = new WorkflowDefinitionParser().Parse(SeedYaml);
+        WorkflowRunContext context = new(
+            7,
+            "tenant",
+            "corr",
+            definition.WorkflowKey,
+            definition.Version,
+            JsonSerializer.Deserialize<JsonElement>("{}")
+        );
+        MessageEnvelope cause = Env("RunWorkflow", "tenant", "corr");
+
+        await handler.HandleAsync(
+            context,
+            definition.Steps[0],
+            cause,
+            new Dictionary<string, JsonElement>(),
+            CancellationToken.None
+        );
+
+        publisher.Verify(
+            p => p.PublishCommandAsync(
+                It.Is<MessageEnvelope>(
+                    e => e.MessageType == "SendTelegramMessage"
+                        && e.CorrelationId == "corr"
+                        && e.TenantKey == "tenant"
+                        && e.CausationId == cause.MessageId
+                        && e.Payload.GetProperty("recipient_id").GetString() == "7f9c6bd4-3c3c-4e1e-9f3d-4ce8b93b8f12"
+                        && e.Payload.GetProperty("message").GetString() == "Test message from Ape.AutomationRunner"
+                ),
+                It.IsAny<CancellationToken>()
+            ),
+            Times.Once
+        );
+    }
+
+    [Test]
+    public async Task ModuleRequestTaskHandler_ExecuteAsync_HardCodedTelegramPayload_MarksStepWaiting()
+    {
+        Mock<IMessagePublisher> publisher = new();
+        FakeWorkflowRunRepository repo = new();
+        ModuleRequestTaskHandler handler = ModuleHandler(
+            publisher.Object,
+            new WorkflowPayloadTemplateRenderer(),
+            repo
+        );
+        WorkflowDefinition definition = new WorkflowDefinitionParser().Parse(SeedYaml);
+        WorkflowRunContext context = new(
+            7,
+            "tenant",
+            "corr",
+            definition.WorkflowKey,
+            definition.Version,
+            JsonSerializer.Deserialize<JsonElement>("{}")
+        );
+
+        await handler.HandleAsync(
+            context,
+            definition.Steps[0],
+            Env("RunWorkflow", "tenant", "corr"),
+            new Dictionary<string, JsonElement>(),
+            CancellationToken.None
+        );
+
+        Assert.That(repo.WaitingStep, Is.Not.Null);
+        Assert.That(repo.WaitingStep!.WorkflowRunId, Is.EqualTo(7));
+        Assert.That(repo.WaitingStep.StepKey, Is.EqualTo("send-message"));
+        Assert.That(repo.WaitingStep.CommandMessageId, Is.Not.Empty);
+        Assert.That(repo.WaitingStep.ExpectedCompletedMessageType, Is.EqualTo("TelegramMessageSent"));
+        Assert.That(repo.WaitingStep.ExpectedFailedMessageType, Is.EqualTo("TelegramMessageFailed"));
+    }
+
+    [Test]
+    public async Task WorkflowDefinitionRepository_LoadByKeyAndVersion_Found_ReturnsYamlContent()
+    {
+        FakeWorkflowDefinitionRepository repository = new(SeedYaml);
+
+        WorkflowDefinitionRecord? record = await repository.LoadByKeyAndVersionAsync(
+            "tenant",
+            "send-test-telegram-message",
+            1,
+            CancellationToken.None
+        );
+
+        Assert.That(record, Is.Not.Null);
+        Assert.That(record!.YamlContent, Is.EqualTo(SeedYaml));
+    }
+
+    [Test]
+    public void WorkflowDefinitionParser_ParseSimpleTelegramWorkflow_ReturnsExpectedStep()
+    {
+        WorkflowDefinition definition = new WorkflowDefinitionParser().Parse(SeedYaml);
+
+        Assert.That(definition.WorkflowKey, Is.EqualTo("send-test-telegram-message"));
+        Assert.That(definition.Version, Is.EqualTo(1));
+        Assert.That(definition.Steps, Has.Count.EqualTo(1));
+        Assert.That(definition.Steps[0].StepKey, Is.EqualTo("send-message"));
+        Assert.That(definition.Steps[0].TaskType, Is.EqualTo("module.request"));
+        ModuleRequestWorkflowTaskConfig config =
+            (ModuleRequestWorkflowTaskConfig)definition.Steps[0].Config;
+        Assert.That(config.CommandMessageType, Is.EqualTo("SendTelegramMessage"));
+        Assert.That(
+            config.Payload.GetProperty("recipient_id").GetString(),
+            Is.EqualTo("7f9c6bd4-3c3c-4e1e-9f3d-4ce8b93b8f12")
         );
     }
 
@@ -318,7 +539,12 @@ public sealed class WorkflowTests
         );
     }
 
-    private static MessageEnvelope Env(string type, string tenant, string correlation)
+    private static MessageEnvelope Env(
+        string type,
+        string tenant,
+        string correlation,
+        string payload = "{}"
+    )
         => new(
             Guid.NewGuid().ToString("N"),
             correlation,
@@ -329,7 +555,35 @@ public sealed class WorkflowTests
             1,
             DateTimeOffset.UtcNow,
             new Dictionary<string, string>(),
-            JsonSerializer.Deserialize<JsonElement>("{}")
+            JsonSerializer.Deserialize<JsonElement>(payload)
+        );
+
+    private static ModuleRequestTaskHandler ModuleHandler(
+        IMessagePublisher publisher,
+        WorkflowPayloadTemplateRenderer renderer,
+        IWorkflowRunRepository repository
+    )
+        => new(
+            publisher,
+            renderer,
+            repository,
+            Options.Create(new WorkflowRunnerOptions()),
+            Options.Create(new ServiceIdentityOptions { Source = "ape.automation-runner" }),
+            NullLogger<ModuleRequestTaskHandler>.Instance
+        );
+
+    private static WorkflowExecutionEngine Engine(
+        IWorkflowDefinitionRepository definitions,
+        IWorkflowRunRepository runs,
+        IWorkflowTaskHandler taskHandler
+    )
+        => new(
+            definitions,
+            new WorkflowDefinitionParser(),
+            new WorkflowDefinitionValidator(),
+            runs,
+            new WorkflowTaskHandlerRegistry(new[] { taskHandler }),
+            NullLogger<WorkflowExecutionEngine>.Instance
         );
 
     private static WorkflowEventCandidate Candidate(
@@ -358,4 +612,151 @@ public sealed class WorkflowTests
         );
         return new WorkflowEventCandidate(context, step);
     }
+
+    private sealed class FakeWorkflowDefinitionRepository(string yaml)
+        : IWorkflowDefinitionRepository
+    {
+        public Task<WorkflowDefinitionRecord?> LoadByKeyAndVersionAsync(
+            string tenantKey,
+            string workflowKey,
+            int workflowVersion,
+            CancellationToken cancellationToken
+        )
+            => Task.FromResult<WorkflowDefinitionRecord?>(
+                new WorkflowDefinitionRecord(
+                    1,
+                    workflowKey,
+                    workflowVersion,
+                    "Send Test Telegram Message",
+                    yaml,
+                    "hash",
+                    true,
+                    DateTimeOffset.UtcNow,
+                    DateTimeOffset.UtcNow
+                )
+            );
+
+        public Task<WorkflowDefinitionRecord?> LoadActiveByKeyAsync(
+            string tenantKey,
+            string workflowKey,
+            CancellationToken cancellationToken
+        )
+            => LoadByKeyAndVersionAsync(tenantKey, workflowKey, 1, cancellationToken);
+    }
+
+    private sealed class FakeWorkflowRunRepository : IWorkflowRunRepository
+    {
+        public CreatedRunRecord? CreatedRun { get; private set; }
+        public WaitingStepRecord? WaitingStep { get; private set; }
+
+        public Task<long> CreateWorkflowRunAsync(
+            string tenantKey,
+            string correlationId,
+            string workflowKey,
+            int workflowVersion,
+            JsonElement inputs,
+            DateTimeOffset startedAtUtc,
+            CancellationToken cancellationToken
+        )
+        {
+            CreatedRun = new CreatedRunRecord(
+                tenantKey,
+                correlationId,
+                workflowKey,
+                workflowVersion,
+                inputs
+            );
+            return Task.FromResult(7L);
+        }
+
+        public Task CreateWorkflowStepAsync(
+            string tenantKey,
+            long workflowRunId,
+            string stepKey,
+            string taskType,
+            WorkflowStepRuntimeStatus status,
+            DateTimeOffset startedAtUtc,
+            CancellationToken cancellationToken
+        ) => Task.CompletedTask;
+
+        public Task<IReadOnlyList<WorkflowEventCandidate>> GetWaitingStepsExpectingEventAsync(
+            string tenantKey,
+            string messageType,
+            CancellationToken cancellationToken
+        ) => Task.FromResult<IReadOnlyList<WorkflowEventCandidate>>(Array.Empty<WorkflowEventCandidate>());
+
+        public Task MarkStepWaitingAsync(
+            string tenantKey,
+            long workflowRunId,
+            string stepKey,
+            string commandMessageId,
+            string expectedCompletedMessageType,
+            string expectedFailedMessageType,
+            DateTimeOffset timeoutAtUtc,
+            CancellationToken cancellationToken
+        )
+        {
+            WaitingStep = new WaitingStepRecord(
+                workflowRunId,
+                stepKey,
+                commandMessageId,
+                expectedCompletedMessageType,
+                expectedFailedMessageType
+            );
+            return Task.CompletedTask;
+        }
+
+        public Task MarkStepFailedAsync(
+            string tenantKey,
+            long workflowRunId,
+            string stepKey,
+            string failureReason,
+            DateTimeOffset failedAtUtc,
+            CancellationToken cancellationToken
+        ) => Task.CompletedTask;
+
+        public Task MarkWorkflowFailedAsync(
+            string tenantKey,
+            long workflowRunId,
+            string failureReason,
+            DateTimeOffset failedAtUtc,
+            CancellationToken cancellationToken
+        ) => Task.CompletedTask;
+    }
+
+    private sealed class RecordingWorkflowTaskHandler : IWorkflowTaskHandler
+    {
+        public string TaskType => "module.request";
+        public WorkflowRunContext? HandledRunContext { get; private set; }
+        public WorkflowStepDefinition? HandledStep { get; private set; }
+
+        public Task<WorkflowStepRuntimeStatus> HandleAsync(
+            WorkflowRunContext runContext,
+            WorkflowStepDefinition step,
+            MessageEnvelope causeEnvelope,
+            IReadOnlyDictionary<string, JsonElement> stepOutputs,
+            CancellationToken cancellationToken
+        )
+        {
+            HandledRunContext = runContext;
+            HandledStep = step;
+            return Task.FromResult(WorkflowStepRuntimeStatus.Waiting);
+        }
+    }
+
+    private sealed record CreatedRunRecord(
+        string TenantKey,
+        string CorrelationId,
+        string WorkflowKey,
+        int WorkflowVersion,
+        JsonElement Inputs
+    );
+
+    private sealed record WaitingStepRecord(
+        long WorkflowRunId,
+        string StepKey,
+        string CommandMessageId,
+        string ExpectedCompletedMessageType,
+        string ExpectedFailedMessageType
+    );
 }
