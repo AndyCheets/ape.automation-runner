@@ -196,6 +196,35 @@ public sealed class WorkflowTests
     }
 
     [Test]
+    public async Task StartWorkflow_WithEmptyInputs_PreservesTopLevelTriggerFields()
+    {
+        FakeWorkflowRunRepository runs = new();
+        WorkflowExecutionEngine engine = Engine(runs, Mock.Of<IMessagePublisher>());
+
+        await engine.StartWorkflowAsync(
+            Env(
+                "RunWorkflow",
+                "tenant",
+                "corr",
+                """{"workflowKey":"ai-telegram-test","inputs":{},"recipient_id":"telegram-recipient"}"""
+            ),
+            new RunWorkflowCommand("ai-telegram-test", 1, Json("""{}""")),
+            CancellationToken.None
+        );
+        await engine.HandleResultEventAsync(
+            Env("AiTextGenerated", "tenant", "corr", """{"generatedText":"generated"}"""),
+            CancellationToken.None
+        );
+
+        Assert.That(runs.FailedWorkflowReason, Is.Null);
+        Assert.That(runs.WaitingStep?.StepKey, Is.EqualTo("send-telegram"));
+        Assert.That(
+            runs.WaitingStep?.InputPayload.GetProperty("recipient_id").GetString(),
+            Is.EqualTo("telegram-recipient")
+        );
+    }
+
+    [Test]
     public async Task SuccessEvent_ResumesWorkflow_AndStartsNextStep()
     {
         FakeWorkflowRunRepository runs = await StartedRunAsync();
@@ -214,6 +243,27 @@ public sealed class WorkflowTests
                     && e.Payload.GetProperty("recipient_id").GetString() == "telegram-recipient"
                     && e.Payload.GetProperty("message").GetString() == "generated"
                     && e.CorrelationId == "corr"),
+                It.IsAny<CancellationToken>()
+            ),
+            Times.Once
+        );
+    }
+
+    [Test]
+    public async Task SuccessEvent_WithDifferentCasing_ResumesWorkflow()
+    {
+        FakeWorkflowRunRepository runs = await StartedRunAsync();
+        Mock<IMessagePublisher> publisher = new();
+        WorkflowExecutionEngine engine = Engine(runs, publisher.Object);
+
+        await engine.HandleResultEventAsync(
+            Env("AITextGenerated", "tenant", "corr", """{"generatedText":"generated"}"""),
+            CancellationToken.None
+        );
+
+        publisher.Verify(
+            p => p.PublishCommandAsync(
+                It.Is<MessageEnvelope>(e => e.MessageType == "SendTelegramMessage"),
                 It.IsAny<CancellationToken>()
             ),
             Times.Once

@@ -20,7 +20,7 @@ public sealed class WorkflowEventMatcher
         if (string.Equals(
             envelope.MessageType,
             step.ExpectedCompletedMessageType,
-            StringComparison.Ordinal
+            StringComparison.OrdinalIgnoreCase
         ))
         {
             return new WorkflowEventMatch(true, false, step.StepKey);
@@ -29,7 +29,7 @@ public sealed class WorkflowEventMatcher
         if (string.Equals(
             envelope.MessageType,
             step.ExpectedFailedMessageType,
-            StringComparison.Ordinal
+            StringComparison.OrdinalIgnoreCase
         ))
         {
             return new WorkflowEventMatch(true, true, step.StepKey);

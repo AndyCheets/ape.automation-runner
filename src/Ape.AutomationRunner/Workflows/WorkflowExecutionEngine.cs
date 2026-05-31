@@ -473,6 +473,11 @@ public sealed class WorkflowExecutionEngine(
         JsonElement envelopePayload
     )
     {
+        if (envelopePayload.ValueKind == JsonValueKind.Object)
+        {
+            return MergeRunWorkflowInputs(command.Inputs, envelopePayload);
+        }
+
         if (command.Inputs.ValueKind is not JsonValueKind.Undefined
             and not JsonValueKind.Null)
         {
@@ -483,6 +488,52 @@ public sealed class WorkflowExecutionEngine(
             ? JsonSerializer.Deserialize<JsonElement>("{}")
             : envelopePayload.Clone();
     }
+
+    private static JsonElement MergeRunWorkflowInputs(
+        JsonElement commandInputs,
+        JsonElement envelopePayload
+    )
+    {
+        using MemoryStream stream = new();
+        using (Utf8JsonWriter writer = new(stream))
+        {
+            writer.WriteStartObject();
+
+            foreach (JsonProperty property in envelopePayload.EnumerateObject())
+            {
+                if (IsRunWorkflowMetadataProperty(property.Name))
+                {
+                    continue;
+                }
+
+                property.WriteTo(writer);
+            }
+
+            if (commandInputs.ValueKind == JsonValueKind.Object)
+            {
+                foreach (JsonProperty property in commandInputs.EnumerateObject())
+                {
+                    property.WriteTo(writer);
+                }
+            }
+            else if (commandInputs.ValueKind is not JsonValueKind.Undefined
+                and not JsonValueKind.Null)
+            {
+                writer.WritePropertyName("inputs");
+                commandInputs.WriteTo(writer);
+            }
+
+            writer.WriteEndObject();
+        }
+
+        using JsonDocument document = JsonDocument.Parse(stream.ToArray());
+        return document.RootElement.Clone();
+    }
+
+    private static bool IsRunWorkflowMetadataProperty(string propertyName)
+        => string.Equals(propertyName, "workflowKey", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(propertyName, "workflowVersion", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(propertyName, "inputs", StringComparison.OrdinalIgnoreCase);
 
     private static int FindStepIndex(WorkflowDefinition definition, string stepKey)
     {
