@@ -23,7 +23,13 @@ public sealed class MessageContractRegistry
                 "GenerateTextWithAi",
                 "AiTextGenerated",
                 "AiTextGenerationFailed",
-                [new MessageOutputMapping("generatedText", "payload.generatedText")]
+                [
+                    new MessageOutputMapping("aiResponseId", "payload.aiResponseId"),
+                    new MessageOutputMapping("promptKey", "payload.promptKey"),
+                    new MessageOutputMapping("promptVersion", "payload.promptVersion"),
+                    new MessageOutputMapping("model", "payload.model"),
+                    new MessageOutputMapping("status", "payload.status"),
+                ]
             ),
             new(
                 "SendTelegramMessage",

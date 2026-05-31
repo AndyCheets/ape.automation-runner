@@ -32,7 +32,9 @@ public sealed class WorkflowTests
             messageType: SendTelegramMessage
             payload:
               recipient_id: "{{ trigger.payload.recipient_id }}"
-              message: "{{ steps.generate-message.outputs.generatedText }}"
+              contentSource:
+                type: ai-response
+                id: "{{ steps.generate-message.outputs.aiResponseId }}"
         """;
 
     [Test]
@@ -115,17 +117,20 @@ public sealed class WorkflowTests
     {
         Dictionary<string, JsonElement> outputs = new()
         {
-            ["generate-message"] = Json("""{"generatedText":"hello"}"""),
+            ["generate-message"] = Json("""{"aiResponseId":"ai-response-123"}"""),
         };
 
         JsonElement rendered = Renderer().Render(
-            Json("""{"message":"{{ steps.generate-message.outputs.generatedText }}"}"""),
+            Json("""{"contentSource":{"type":"ai-response","id":"{{ steps.generate-message.outputs.aiResponseId }}"}}"""),
             Json("{}"),
             outputs,
             "corr"
         );
 
-        Assert.That(rendered.GetProperty("message").GetString(), Is.EqualTo("hello"));
+        Assert.That(
+            rendered.GetProperty("contentSource").GetProperty("id").GetString(),
+            Is.EqualTo("ai-response-123")
+        );
     }
 
     [Test]
@@ -157,15 +162,29 @@ public sealed class WorkflowTests
     }
 
     [Test]
-    public void ContractRegistry_AiTextGenerated_MapsGeneratedText()
+    public void ContractRegistry_AiTextGenerated_MapsAiResponseMetadata()
     {
         MessageContractRegistry registry = new();
         JsonElement outputs = registry.MapOutputs(
             registry.Get("GenerateTextWithAi"),
-            Json("""{"generatedText":"hello from ai"}""")
+            Json(
+                """
+                {
+                  "aiResponseId": "9b2f8c5f-2f5d-4fd8-b1d9-8b8cf0d6c111",
+                  "promptKey": "weekly-email-report",
+                  "promptVersion": 1,
+                  "model": "gpt-4.1",
+                  "status": "completed"
+                }
+                """
+            )
         );
 
-        Assert.That(outputs.GetProperty("generatedText").GetString(), Is.EqualTo("hello from ai"));
+        Assert.That(outputs.GetProperty("aiResponseId").GetString(), Is.EqualTo("9b2f8c5f-2f5d-4fd8-b1d9-8b8cf0d6c111"));
+        Assert.That(outputs.GetProperty("promptKey").GetString(), Is.EqualTo("weekly-email-report"));
+        Assert.That(outputs.GetProperty("promptVersion").GetInt32(), Is.EqualTo(1));
+        Assert.That(outputs.GetProperty("model").GetString(), Is.EqualTo("gpt-4.1"));
+        Assert.That(outputs.GetProperty("status").GetString(), Is.EqualTo("completed"));
     }
 
     [Test]
@@ -212,7 +231,7 @@ public sealed class WorkflowTests
             CancellationToken.None
         );
         await engine.HandleResultEventAsync(
-            Env("AiTextGenerated", "tenant", "corr", """{"generatedText":"generated"}"""),
+            AiTextGenerated("tenant", "corr"),
             CancellationToken.None
         );
 
@@ -232,7 +251,7 @@ public sealed class WorkflowTests
         WorkflowExecutionEngine engine = Engine(runs, publisher.Object);
 
         await engine.HandleResultEventAsync(
-            Env("AiTextGenerated", "tenant", "corr", """{"generatedText":"generated"}"""),
+            AiTextGenerated("tenant", "corr"),
             CancellationToken.None
         );
 
@@ -241,7 +260,8 @@ public sealed class WorkflowTests
                 It.Is<MessageEnvelope>(e =>
                     e.MessageType == "SendTelegramMessage"
                     && e.Payload.GetProperty("recipient_id").GetString() == "telegram-recipient"
-                    && e.Payload.GetProperty("message").GetString() == "generated"
+                    && e.Payload.GetProperty("contentSource").GetProperty("type").GetString() == "ai-response"
+                    && e.Payload.GetProperty("contentSource").GetProperty("id").GetString() == "9b2f8c5f-2f5d-4fd8-b1d9-8b8cf0d6c111"
                     && e.CorrelationId == "corr"),
                 It.IsAny<CancellationToken>()
             ),
@@ -257,7 +277,7 @@ public sealed class WorkflowTests
         WorkflowExecutionEngine engine = Engine(runs, publisher.Object);
 
         await engine.HandleResultEventAsync(
-            Env("AITextGenerated", "tenant", "corr", """{"generatedText":"generated"}"""),
+            AiTextGenerated("tenant", "corr", "AITextGenerated"),
             CancellationToken.None
         );
 
@@ -306,7 +326,7 @@ public sealed class WorkflowTests
         WorkflowExecutionEngine engine = Engine(runs, Mock.Of<IMessagePublisher>());
 
         await engine.HandleResultEventAsync(
-            Env("AiTextGenerated", "tenant", "corr", """{"generatedText":"generated"}"""),
+            AiTextGenerated("tenant", "corr"),
             CancellationToken.None
         );
         await engine.HandleResultEventAsync(
@@ -397,6 +417,26 @@ public sealed class WorkflowTests
             DateTimeOffset.UtcNow,
             new Dictionary<string, string>(),
             Json(payload)
+        );
+
+    private static MessageEnvelope AiTextGenerated(
+        string tenant,
+        string correlation,
+        string type = "AiTextGenerated"
+    )
+        => Env(
+            type,
+            tenant,
+            correlation,
+            """
+            {
+              "aiResponseId": "9b2f8c5f-2f5d-4fd8-b1d9-8b8cf0d6c111",
+              "promptKey": "weekly-email-report",
+              "promptVersion": 1,
+              "model": "gpt-4.1",
+              "status": "completed"
+            }
+            """
         );
 
     private sealed class FakeWorkflowDefinitionRepository(string yaml)
