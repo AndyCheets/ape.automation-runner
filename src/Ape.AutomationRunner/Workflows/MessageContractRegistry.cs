@@ -37,6 +37,12 @@ public sealed class MessageContractRegistry
                 "TelegramMessageFailed",
                 []
             ),
+            new(
+                "SendEmail",
+                "EmailSent",
+                "EmailFailed",
+                []
+            ),
         ];
 
         _contracts = contracts.ToDictionary(
