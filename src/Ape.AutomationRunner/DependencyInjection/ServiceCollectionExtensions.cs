@@ -11,7 +11,8 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddAutomationRunner(
         this IServiceCollection services,
-        IConfiguration configuration
+        IConfiguration configuration,
+        bool includeHostedServices = true
     )
     {
         services
@@ -28,7 +29,11 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<WorkflowTaskHandlerRegistry>();
         services.AddSingleton<IWorkflowExecutionEngine, WorkflowExecutionEngine>();
         services.AddSingleton<IWorkflowTaskHandler, CommandWorkflowTaskHandler>();
-        services.AddHostedService<WorkflowTimeoutMonitorHostedService>();
+
+        if (includeHostedServices)
+        {
+            services.AddHostedService<WorkflowTimeoutMonitorHostedService>();
+        }
 
         return services;
     }

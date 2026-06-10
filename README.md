@@ -2,6 +2,16 @@
 
 `Ape.AutomationRunner` is a message-driven workflow coordinator. It consumes `RunWorkflow`, loads YAML workflow definitions from MySQL, executes linear steps, publishes module commands, and resumes waiting steps when correlated completion/failure events are received.
 
+## Runtime modes
+
+The same Docker image can run as either the existing RabbitMQ workflow worker or the workflow management API.
+
+- `APE_SERVICE_MODE=worker` starts the existing message-driven worker and remains the default when the variable is missing or empty.
+- `APE_SERVICE_MODE=api` starts the REST API with Swagger UI at `/docs` and a health endpoint at `/health`.
+- Unsupported values fail startup with a clear error listing the supported modes.
+
+Workflow API endpoints are tenant-scoped and require the existing `x-ape-tenant-key` header. The API exposes CRUD routes under `/api/workflows` and queues test executions with `POST /api/workflows/{workflowId}/test` by publishing the existing `RunWorkflow` command.
+
 ## V1 scope
 
 It **does**:

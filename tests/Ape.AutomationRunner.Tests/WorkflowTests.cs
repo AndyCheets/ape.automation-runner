@@ -442,6 +442,34 @@ public sealed class WorkflowTests
     private sealed class FakeWorkflowDefinitionRepository(string yaml)
         : IWorkflowDefinitionRepository
     {
+        public Task<IReadOnlyList<WorkflowDefinitionRecord>> ListAsync(
+            string tenantKey,
+            CancellationToken cancellationToken
+        )
+            => Task.FromResult<IReadOnlyList<WorkflowDefinitionRecord>>(
+                new[]
+                {
+                    new WorkflowDefinitionRecord(
+                        1,
+                        "ai-telegram-test",
+                        1,
+                        "AI Telegram Test",
+                        yaml,
+                        "hash",
+                        true,
+                        DateTimeOffset.UtcNow,
+                        DateTimeOffset.UtcNow
+                    ),
+                }
+            );
+
+        public Task<WorkflowDefinitionRecord?> LoadByIdAsync(
+            string tenantKey,
+            long workflowId,
+            CancellationToken cancellationToken
+        )
+            => LoadByKeyAndVersionAsync(tenantKey, "ai-telegram-test", 1, cancellationToken);
+
         public Task<WorkflowDefinitionRecord?> LoadByKeyAndVersionAsync(
             string tenantKey,
             string workflowKey,
@@ -468,6 +496,59 @@ public sealed class WorkflowTests
             CancellationToken cancellationToken
         )
             => LoadByKeyAndVersionAsync(tenantKey, workflowKey, 1, cancellationToken);
+
+        public Task<WorkflowDefinitionRecord> CreateAsync(
+            string tenantKey,
+            string workflowKey,
+            int workflowVersion,
+            string name,
+            string yamlContent,
+            bool isActive,
+            CancellationToken cancellationToken
+        )
+            => Task.FromResult(
+                new WorkflowDefinitionRecord(
+                    1,
+                    workflowKey,
+                    workflowVersion,
+                    name,
+                    yamlContent,
+                    "hash",
+                    isActive,
+                    DateTimeOffset.UtcNow,
+                    DateTimeOffset.UtcNow
+                )
+            );
+
+        public Task<WorkflowDefinitionRecord?> UpdateAsync(
+            string tenantKey,
+            long workflowId,
+            string name,
+            string yamlContent,
+            bool isActive,
+            CancellationToken cancellationToken
+        )
+            => Task.FromResult<WorkflowDefinitionRecord?>(
+                new WorkflowDefinitionRecord(
+                    workflowId,
+                    "ai-telegram-test",
+                    1,
+                    name,
+                    yamlContent,
+                    "hash",
+                    isActive,
+                    DateTimeOffset.UtcNow,
+                    DateTimeOffset.UtcNow
+                )
+            );
+
+        public Task<bool> DeactivateAsync(
+            string tenantKey,
+            long workflowId,
+            CancellationToken cancellationToken
+        )
+            => Task.FromResult(true);
+
     }
 
     private sealed class FakeWorkflowRunRepository : IWorkflowRunRepository

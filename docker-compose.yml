@@ -1,7 +1,18 @@
 services:
-  worker:
+  ape-workflow-worker:
     build:
       context: .
       dockerfile: docker/Dockerfile
     env_file:
       - .env
+    environment:
+      APE_SERVICE_MODE: worker
+
+  ape-workflow-api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    env_file:
+      - .env
+    environment:
+      APE_SERVICE_MODE: api
