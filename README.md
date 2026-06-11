@@ -10,7 +10,7 @@ The same Docker image can run as either the existing RabbitMQ workflow worker or
 - `APE_SERVICE_MODE=api` starts the REST API with Swagger UI at `/docs` and a health endpoint at `/health`.
 - Unsupported values fail startup with a clear error listing the supported modes.
 
-Workflow API endpoints are tenant-scoped and require the existing `x-ape-tenant-key` header. The API exposes CRUD routes under `/api/workflows` and queues test executions with `POST /api/workflows/{workflowId}/test` by publishing the existing `RunWorkflow` command.
+Workflow API endpoints are tenant-scoped and require the existing `x-ape-tenant-key` header. The API serves workflow CRUD routes from the service root and queues test executions with `POST /{workflowId}/test` by publishing the existing `RunWorkflow` command.
 
 ## V1 scope
 

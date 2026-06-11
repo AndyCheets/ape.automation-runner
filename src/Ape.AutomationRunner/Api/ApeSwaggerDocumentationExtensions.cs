@@ -1,45 +1,30 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.OpenApi;
+using Microsoft.OpenApi.Extensions;
+using Swashbuckle.AspNetCore.Swagger;
 
 namespace Ape.AutomationRunner.Api;
 
 public static class ApeSwaggerDocumentationExtensions
 {
-    public const string GatewayPathPrefix = "/api/workflows";
     public const string OpenApiPath = "/openapi.json";
-    public const string GatewayOpenApiPath = GatewayPathPrefix + OpenApiPath;
     public const string ReDocSpecUrl = "openapi.json";
     public const string SwaggerUiOpenApiPath = "../openapi.json";
     public const string SwaggerUiPath = "/docs";
-    public const string GatewaySwaggerUiPath = GatewayPathPrefix + SwaggerUiPath;
     public const string ReDocPath = "/redoc";
-    public const string GatewayReDocPath = GatewayPathPrefix + ReDocPath;
 
     public static WebApplication UseApeSwaggerDocumentation(this WebApplication app)
     {
-        app.UseSwagger(options =>
-        {
-            options.RouteTemplate = "openapi.json";
-        });
-        app.UseSwagger(options =>
-        {
-            options.RouteTemplate = "api/workflows/openapi.json";
-        });
+        app.MapGet(OpenApiPath, WriteOpenApiJson)
+            .ExcludeFromDescription();
 
         app.UseSwaggerUI(options =>
         {
             options.RoutePrefix = "docs";
             options.SwaggerEndpoint(SwaggerUiOpenApiPath, "APE Automation Runner Workflow API v1");
         });
-        app.UseSwaggerUI(options =>
-        {
-            options.RoutePrefix = "api/workflows/docs";
-            options.SwaggerEndpoint(SwaggerUiOpenApiPath, "APE Automation Runner Workflow API v1");
-        });
-
         app.MapGet(ReDocPath, () => Results.Content(GetReDocHtml(), "text/html; charset=utf-8"))
-            .ExcludeFromDescription();
-        app.MapGet(GatewayReDocPath, () => Results.Content(GetReDocHtml(), "text/html; charset=utf-8"))
             .ExcludeFromDescription();
 
         return app;
@@ -61,4 +46,11 @@ public static class ApeSwaggerDocumentationExtensions
             </body>
             </html>
             """;
+
+    private static Task WriteOpenApiJson(ISwaggerProvider swaggerProvider, HttpResponse response)
+    {
+        response.ContentType = "application/json; charset=utf-8";
+        swaggerProvider.GetSwagger("v1").SerializeAsJson(response.Body, OpenApiSpecVersion.OpenApi3_0);
+        return Task.CompletedTask;
+    }
 }

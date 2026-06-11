@@ -77,10 +77,7 @@ public sealed class RuntimeAndApiTests
         Assert.That(ApeSwaggerDocumentationExtensions.SwaggerUiPath, Is.EqualTo("/docs"));
         Assert.That(ApeSwaggerDocumentationExtensions.ReDocPath, Is.EqualTo("/redoc"));
         Assert.That(ApeSwaggerDocumentationExtensions.OpenApiPath, Is.EqualTo("/openapi.json"));
-        Assert.That(ApeSwaggerDocumentationExtensions.GatewayOpenApiPath, Is.EqualTo("/api/workflows/openapi.json"));
         Assert.That(ApeSwaggerDocumentationExtensions.SwaggerUiPath, Is.EqualTo("/docs"));
-        Assert.That(ApeSwaggerDocumentationExtensions.GatewaySwaggerUiPath, Is.EqualTo("/api/workflows/docs"));
-        Assert.That(ApeSwaggerDocumentationExtensions.GatewayReDocPath, Is.EqualTo("/api/workflows/redoc"));
         Assert.That(ApeSwaggerDocumentationExtensions.SwaggerUiOpenApiPath, Is.EqualTo("../openapi.json"));
         Assert.That(ApeSwaggerDocumentationExtensions.ReDocSpecUrl, Is.EqualTo("openapi.json"));
         Assert.That(ApeSwaggerDocumentationExtensions.GetReDocHtml(), Does.Contain("spec-url=\"openapi.json\""));

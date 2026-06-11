@@ -16,7 +16,7 @@ public static class WorkflowApiEndpoints
             .WithTags("Health")
             .WithSummary("Returns workflow API service health.");
 
-        RouteGroupBuilder workflows = app.MapGroup("/api/workflows")
+        RouteGroupBuilder workflows = app.MapGroup("")
             .WithTags("Workflows");
 
         workflows.MapGet("", ListWorkflows)
@@ -110,7 +110,7 @@ public static class WorkflowApiEndpoints
         WorkflowApiResult<WorkflowResponse> result =
             await workflowApiService.CreateAsync(tenantKey, createRequest, cancellationToken);
         return result.Error is null
-            ? Results.Created($"/api/workflows/{result.Value!.WorkflowId}", result.Value)
+            ? Results.Created($"/{result.Value!.WorkflowId}", result.Value)
             : ToErrorResult(result.Error);
     }
 
