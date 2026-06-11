@@ -64,7 +64,7 @@ public static class WorkflowApiEndpoints
 
     private static async Task<IResult> ListWorkflows(
         HttpRequest request,
-        IWorkflowApiService workflowApiService,
+        [FromServices] IWorkflowApiService workflowApiService,
         CancellationToken cancellationToken
     )
     {
@@ -81,7 +81,7 @@ public static class WorkflowApiEndpoints
     private static async Task<IResult> GetWorkflow(
         long workflowId,
         HttpRequest request,
-        IWorkflowApiService workflowApiService,
+        [FromServices] IWorkflowApiService workflowApiService,
         CancellationToken cancellationToken
     )
     {
@@ -98,7 +98,7 @@ public static class WorkflowApiEndpoints
     private static async Task<IResult> CreateWorkflow(
         [FromBody] CreateWorkflowRequest createRequest,
         HttpRequest request,
-        IWorkflowApiService workflowApiService,
+        [FromServices] IWorkflowApiService workflowApiService,
         CancellationToken cancellationToken
     )
     {
@@ -118,7 +118,7 @@ public static class WorkflowApiEndpoints
         long workflowId,
         [FromBody] UpdateWorkflowRequest updateRequest,
         HttpRequest request,
-        IWorkflowApiService workflowApiService,
+        [FromServices] IWorkflowApiService workflowApiService,
         CancellationToken cancellationToken
     )
     {
@@ -135,7 +135,7 @@ public static class WorkflowApiEndpoints
     private static async Task<IResult> DeleteWorkflow(
         long workflowId,
         HttpRequest request,
-        IWorkflowApiService workflowApiService,
+        [FromServices] IWorkflowApiService workflowApiService,
         CancellationToken cancellationToken
     )
     {
@@ -153,7 +153,7 @@ public static class WorkflowApiEndpoints
         long workflowId,
         [FromBody] TestWorkflowRequest? testRequest,
         HttpRequest request,
-        IWorkflowApiService workflowApiService,
+        [FromServices] IWorkflowApiService workflowApiService,
         CancellationToken cancellationToken
     )
     {

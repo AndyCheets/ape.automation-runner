@@ -49,13 +49,22 @@ public static class ApeSwaggerDocumentationExtensions
             </html>
             """;
 
-    private static Task WriteOpenApiJson(ISwaggerProvider swaggerProvider, HttpResponse response)
+    private static async Task WriteOpenApiJson(
+        ISwaggerProvider swaggerProvider,
+        HttpResponse response,
+        CancellationToken cancellationToken
+    )
     {
         response.ContentType = "application/json; charset=utf-8";
         OpenApiDocument document = swaggerProvider.GetSwagger("v1");
         ApplyGatewayPathPrefix(document);
-        document.SerializeAsJson(response.Body, OpenApiSpecVersion.OpenApi3_0);
-        return Task.CompletedTask;
+
+        using MemoryStream stream = new();
+        document.SerializeAsJson(stream, OpenApiSpecVersion.OpenApi3_0);
+        response.ContentLength = stream.Length;
+
+        stream.Position = 0;
+        await stream.CopyToAsync(response.Body, cancellationToken);
     }
 
     public static void ApplyGatewayPathPrefix(OpenApiDocument document)

@@ -10,6 +10,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
+      APE_SERVICE_MODE: "api"
       InternalApi__Enabled: "true"
       InternalApi__ApiKey: dev-key
       RabbitMq__Host: 100.92.86.39

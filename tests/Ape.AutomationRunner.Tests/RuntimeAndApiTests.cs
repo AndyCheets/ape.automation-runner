@@ -7,6 +7,8 @@ using Ape.AutomationRunner.Workflows;
 using Ape.Worker.Sdk.Configuration;
 using Ape.Worker.Sdk.Messaging;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi;
 using Microsoft.OpenApi.Extensions;
@@ -102,10 +104,11 @@ public sealed class RuntimeAndApiTests
                 Version = "v1"
             });
         });
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
 
         await using WebApplication app = builder.Build();
         app.MapAutomationRunnerApi();
-
+        await app.StartAsync();
         ISwaggerProvider swaggerProvider = app.Services.GetRequiredService<ISwaggerProvider>();
         OpenApiDocument document = swaggerProvider.GetSwagger("v1");
 
@@ -129,9 +132,11 @@ public sealed class RuntimeAndApiTests
                 Version = "v1"
             });
         });
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
 
         await using WebApplication app = builder.Build();
         app.MapAutomationRunnerApi();
+        await app.StartAsync();
 
         ISwaggerProvider swaggerProvider = app.Services.GetRequiredService<ISwaggerProvider>();
         OpenApiDocument document = swaggerProvider.GetSwagger("v1");
