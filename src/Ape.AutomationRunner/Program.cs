@@ -26,7 +26,7 @@ if (mode == ApeServiceMode.Api)
 {
     WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
-    builder.Services.AddApeWorkerSdk(builder.Configuration);
+    builder.Services.AddApeWorkerSdk(builder.Configuration, includeHostedServices: false);
     builder.Services.AddAutomationRunner(builder.Configuration, includeHostedServices: false);
     builder.Services.AddScoped<IWorkflowApiService, WorkflowApiService>();
     builder.Services.ConfigureHttpJsonOptions(options =>

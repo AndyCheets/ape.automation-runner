@@ -5,10 +5,13 @@ using Ape.AutomationRunner.Api.Services;
 using Ape.AutomationRunner.Runtime;
 using Ape.AutomationRunner.Workflows;
 using Ape.Worker.Sdk.Configuration;
+using Ape.Worker.Sdk.DependencyInjection;
 using Ape.Worker.Sdk.Messaging;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi;
 using Microsoft.OpenApi.Extensions;
@@ -53,6 +56,18 @@ public sealed class RuntimeAndApiTests
     public void ServiceMode_Api_ResolvesApi()
     {
         Assert.That(ApeServiceModeResolver.Resolve("api"), Is.EqualTo(ApeServiceMode.Api));
+    }
+
+    [Test]
+    public void WorkerSdk_WhenHostedServicesDisabled_DoesNotRegisterConsumers()
+    {
+        ServiceCollection services = new();
+        IConfiguration configuration = new ConfigurationBuilder().Build();
+
+        services.AddApeWorkerSdk(configuration, includeHostedServices: false);
+
+        Assert.That(services.Any(s => s.ServiceType == typeof(IHostedService)), Is.False);
+        Assert.That(services.Any(s => s.ServiceType == typeof(IMessagePublisher)), Is.True);
     }
 
     [Test]
