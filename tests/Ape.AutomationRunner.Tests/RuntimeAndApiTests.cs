@@ -6,9 +6,14 @@ using Ape.AutomationRunner.Runtime;
 using Ape.AutomationRunner.Workflows;
 using Ape.Worker.Sdk.Configuration;
 using Ape.Worker.Sdk.Messaging;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Options;
+using Microsoft.OpenApi;
+using Microsoft.OpenApi.Extensions;
+using Microsoft.OpenApi.Models;
 using Moq;
 using NUnit.Framework;
+using Swashbuckle.AspNetCore.Swagger;
 
 namespace Ape.AutomationRunner.Tests;
 
@@ -80,7 +85,65 @@ public sealed class RuntimeAndApiTests
         Assert.That(ApeSwaggerDocumentationExtensions.SwaggerUiPath, Is.EqualTo("/docs"));
         Assert.That(ApeSwaggerDocumentationExtensions.SwaggerUiOpenApiPath, Is.EqualTo("../openapi.json"));
         Assert.That(ApeSwaggerDocumentationExtensions.ReDocSpecUrl, Is.EqualTo("openapi.json"));
+        Assert.That(ApeSwaggerDocumentationExtensions.GatewayPathPrefix, Is.EqualTo("/api/workflows"));
         Assert.That(ApeSwaggerDocumentationExtensions.GetReDocHtml(), Does.Contain("spec-url=\"openapi.json\""));
+    }
+
+    [Test]
+    public async Task SwaggerDocumentation_OpenApiDocumentSerializes()
+    {
+        WebApplicationBuilder builder = WebApplication.CreateBuilder();
+        builder.Services.AddEndpointsApiExplorer();
+        builder.Services.AddSwaggerGen(options =>
+        {
+            options.SwaggerDoc("v1", new OpenApiInfo
+            {
+                Title = "APE Automation Runner Workflow API",
+                Version = "v1"
+            });
+        });
+
+        await using WebApplication app = builder.Build();
+        app.MapAutomationRunnerApi();
+
+        ISwaggerProvider swaggerProvider = app.Services.GetRequiredService<ISwaggerProvider>();
+        OpenApiDocument document = swaggerProvider.GetSwagger("v1");
+
+        Assert.That(document.Paths.Keys, Has.No.EqualTo(string.Empty));
+        Assert.That(document.Paths.Keys, Has.Some.EqualTo("/"));
+
+        using MemoryStream stream = new();
+        Assert.DoesNotThrow(() => document.SerializeAsJson(stream, OpenApiSpecVersion.OpenApi3_0));
+    }
+
+    [Test]
+    public async Task SwaggerDocumentation_OpenApiDocumentUsesGatewayPathPrefix()
+    {
+        WebApplicationBuilder builder = WebApplication.CreateBuilder();
+        builder.Services.AddEndpointsApiExplorer();
+        builder.Services.AddSwaggerGen(options =>
+        {
+            options.SwaggerDoc("v1", new OpenApiInfo
+            {
+                Title = "APE Automation Runner Workflow API",
+                Version = "v1"
+            });
+        });
+
+        await using WebApplication app = builder.Build();
+        app.MapAutomationRunnerApi();
+
+        ISwaggerProvider swaggerProvider = app.Services.GetRequiredService<ISwaggerProvider>();
+        OpenApiDocument document = swaggerProvider.GetSwagger("v1");
+        ApeSwaggerDocumentationExtensions.ApplyGatewayPathPrefix(document);
+
+        Assert.That(document.Paths.Keys, Has.No.EqualTo("/"));
+        Assert.That(document.Paths.Keys, Has.Some.EqualTo("/api/workflows"));
+        Assert.That(document.Paths.Keys, Has.Some.EqualTo("/api/workflows/{workflowId}"));
+        Assert.That(document.Paths.Keys.All(path => path.StartsWith("/api/workflows", StringComparison.Ordinal)), Is.True);
+
+        using MemoryStream stream = new();
+        Assert.DoesNotThrow(() => document.SerializeAsJson(stream, OpenApiSpecVersion.OpenApi3_0));
     }
 
     [Test]

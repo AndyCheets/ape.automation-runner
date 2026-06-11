@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.OpenApi;
 using Microsoft.OpenApi.Extensions;
+using Microsoft.OpenApi.Models;
 using Swashbuckle.AspNetCore.Swagger;
 
 namespace Ape.AutomationRunner.Api;
@@ -13,6 +14,7 @@ public static class ApeSwaggerDocumentationExtensions
     public const string SwaggerUiOpenApiPath = "../openapi.json";
     public const string SwaggerUiPath = "/docs";
     public const string ReDocPath = "/redoc";
+    public const string GatewayPathPrefix = "/api/workflows";
 
     public static WebApplication UseApeSwaggerDocumentation(this WebApplication app)
     {
@@ -50,7 +52,24 @@ public static class ApeSwaggerDocumentationExtensions
     private static Task WriteOpenApiJson(ISwaggerProvider swaggerProvider, HttpResponse response)
     {
         response.ContentType = "application/json; charset=utf-8";
-        swaggerProvider.GetSwagger("v1").SerializeAsJson(response.Body, OpenApiSpecVersion.OpenApi3_0);
+        OpenApiDocument document = swaggerProvider.GetSwagger("v1");
+        ApplyGatewayPathPrefix(document);
+        document.SerializeAsJson(response.Body, OpenApiSpecVersion.OpenApi3_0);
         return Task.CompletedTask;
+    }
+
+    public static void ApplyGatewayPathPrefix(OpenApiDocument document)
+    {
+        OpenApiPaths prefixedPaths = [];
+        foreach (KeyValuePair<string, OpenApiPathItem> path in document.Paths)
+        {
+            string prefixedPath = path.Key.Equals("/", StringComparison.Ordinal)
+                ? GatewayPathPrefix
+                : $"{GatewayPathPrefix}{path.Key}";
+
+            prefixedPaths[prefixedPath] = path.Value;
+        }
+
+        document.Paths = prefixedPaths;
     }
 }

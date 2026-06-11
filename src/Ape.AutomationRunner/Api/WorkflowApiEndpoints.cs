@@ -16,7 +16,7 @@ public static class WorkflowApiEndpoints
             .WithTags("Health")
             .WithSummary("Returns workflow API service health.");
 
-        RouteGroupBuilder workflows = app.MapGroup("")
+        RouteGroupBuilder workflows = app.MapGroup("/")
             .WithTags("Workflows");
 
         workflows.MapGet("", ListWorkflows)
