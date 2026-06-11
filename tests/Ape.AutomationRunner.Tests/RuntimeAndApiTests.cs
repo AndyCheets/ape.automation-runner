@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Ape.AutomationRunner.Api;
 using Ape.AutomationRunner.Api.Models;
 using Ape.AutomationRunner.Api.Services;
 using Ape.AutomationRunner.Runtime;
@@ -45,6 +46,44 @@ public sealed class RuntimeAndApiTests
     public void ServiceMode_Api_ResolvesApi()
     {
         Assert.That(ApeServiceModeResolver.Resolve("api"), Is.EqualTo(ApeServiceMode.Api));
+    }
+
+    [Test]
+    public void WorkflowApi_ResponseSerialization_UsesCamelCaseFieldNames()
+    {
+        WorkflowResponse response = new(
+            42,
+            "sample-workflow",
+            1,
+            "Sample Workflow",
+            ValidYaml,
+            true,
+            DateTimeOffset.Parse("2026-06-10T14:30:00Z"),
+            DateTimeOffset.Parse("2026-06-10T15:30:00Z")
+        );
+
+        string json = JsonSerializer.Serialize(response, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        using JsonDocument document = JsonDocument.Parse(json);
+
+        Assert.That(document.RootElement.TryGetProperty("workflowId", out _), Is.True);
+        Assert.That(document.RootElement.TryGetProperty("workflowKey", out _), Is.True);
+        Assert.That(document.RootElement.TryGetProperty("createdAtUtc", out _), Is.True);
+        Assert.That(document.RootElement.TryGetProperty("WorkflowId", out _), Is.False);
+    }
+
+    [Test]
+    public void SwaggerDocumentation_UsesApeStandardPaths()
+    {
+        Assert.That(ApeSwaggerDocumentationExtensions.SwaggerUiPath, Is.EqualTo("/docs"));
+        Assert.That(ApeSwaggerDocumentationExtensions.ReDocPath, Is.EqualTo("/redoc"));
+        Assert.That(ApeSwaggerDocumentationExtensions.OpenApiPath, Is.EqualTo("/openapi.json"));
+        Assert.That(ApeSwaggerDocumentationExtensions.GatewayOpenApiPath, Is.EqualTo("/api/workflows/openapi.json"));
+        Assert.That(ApeSwaggerDocumentationExtensions.SwaggerUiPath, Is.EqualTo("/docs"));
+        Assert.That(ApeSwaggerDocumentationExtensions.GatewaySwaggerUiPath, Is.EqualTo("/api/workflows/docs"));
+        Assert.That(ApeSwaggerDocumentationExtensions.GatewayReDocPath, Is.EqualTo("/api/workflows/redoc"));
+        Assert.That(ApeSwaggerDocumentationExtensions.SwaggerUiOpenApiPath, Is.EqualTo("../openapi.json"));
+        Assert.That(ApeSwaggerDocumentationExtensions.ReDocSpecUrl, Is.EqualTo("openapi.json"));
+        Assert.That(ApeSwaggerDocumentationExtensions.GetReDocHtml(), Does.Contain("spec-url=\"openapi.json\""));
     }
 
     [Test]

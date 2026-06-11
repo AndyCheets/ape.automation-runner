@@ -29,6 +29,11 @@ if (mode == ApeServiceMode.Api)
     builder.Services.AddApeWorkerSdk(builder.Configuration);
     builder.Services.AddAutomationRunner(builder.Configuration, includeHostedServices: false);
     builder.Services.AddScoped<IWorkflowApiService, WorkflowApiService>();
+    builder.Services.ConfigureHttpJsonOptions(options =>
+    {
+        options.SerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+        options.SerializerOptions.DictionaryKeyPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+    });
     builder.Services.AddEndpointsApiExplorer();
     builder.Services.AddSwaggerGen(options =>
     {
@@ -42,11 +47,7 @@ if (mode == ApeServiceMode.Api)
 
     WebApplication app = builder.Build();
     app.Logger.LogInformation("Starting Ape.AutomationRunner in API mode.");
-    app.UseSwagger();
-    app.UseSwaggerUI(options =>
-    {
-        options.RoutePrefix = "docs";
-    });
+    app.UseApeSwaggerDocumentation();
     app.MapAutomationRunnerApi();
 
     await app.RunAsync();
